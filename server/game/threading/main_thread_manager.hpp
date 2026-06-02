@@ -30,7 +30,7 @@ public:
     ~MainThreadManager();
     
     // 메인 스레드 시작/종료
-    void start();
+    void start(int tick_ms = 16);
     void stop();
     
     // 작업 추가
@@ -39,7 +39,11 @@ public:
     void add_global_task(std::function<void()> task);
     
     // 맵 스레드 관리
-    void create_map_thread(int map_id, const std::string& map_name);
+    void create_map_thread(int map_id, const std::string& map_name,
+                          float width = 1000.0f, float height = 1000.0f,
+                          int max_players = 100, int max_monsters = 50,
+                          float spawn_interval = 30.0f, bool monster_spawn = true,
+                          int tick_ms = 16);
     void destroy_map_thread(int map_id);
     void send_packet_to_map(int map_id, int channel_id, std::uint16_t cmd, 
                           const char* data, std::size_t size);
@@ -50,7 +54,7 @@ public:
     void handle_friend_system(int channel_id, const std::string& message);
     
     // 맵 이동 처리
-    void handle_map_transfer(int channel_id, int from_map, int to_map);
+    void handle_map_transfer(int channel_id, int from_map, int to_map, Entity player_entity);
     
     // ECS 업데이트
     void update_ecs(float delta_time);
@@ -79,6 +83,7 @@ private:
     // 스레드 상태
     std::atomic<bool> running_{false};
     std::thread main_thread_;
+    int tick_ms_{16};
     
     // ECS 서비스
     GameService& game_service_;

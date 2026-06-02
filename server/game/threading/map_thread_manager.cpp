@@ -4,25 +4,26 @@
 
 namespace lemondory::game {
 
-MapThreadManager::MapThreadManager() 
-    : game_service_(GameService::instance()) {
-}
+MapThreadManager::MapThreadManager() = default;
 
 MapThreadManager::~MapThreadManager() {
     stop_all_map_threads();
 }
 
-void MapThreadManager::create_map_thread(int map_id, const std::string& map_name, 
-                                       float width, float height, int max_players) {
+void MapThreadManager::create_map_thread(int map_id, const std::string& map_name,
+                                       float width, float height, int max_players,
+                                       int max_monsters, float spawn_interval,
+                                       bool monster_spawn, int tick_ms) {
     std::lock_guard<std::mutex> lock(map_threads_mutex_);
-    
+
     if (map_threads_.find(map_id) != map_threads_.end()) {
         std::cout << "[MapThreadManager] Map thread " << map_id << " already exists" << std::endl;
         return;
     }
-    
-    // 맵 스레드 생성
-    auto map_thread = std::make_unique<MapThread>(map_id, map_name, width, height, max_players);
+
+    auto map_thread = std::make_unique<MapThread>(
+        map_id, map_name, width, height, max_players,
+        max_monsters, spawn_interval, monster_spawn, tick_ms);
     map_thread->start();
     
     map_threads_[map_id] = std::move(map_thread);
@@ -87,26 +88,18 @@ void MapThreadManager::remove_player_from_map(int map_id, int channel_id) {
     }
 }
 
-void MapThreadManager::move_player_to_map(int channel_id, int from_map, int to_map) {
+void MapThreadManager::move_player_to_map(int channel_id, int from_map, int to_map, Entity player_entity) {
     std::lock_guard<std::mutex> lock(map_threads_mutex_);
-    
-    // 이전 맵에서 제거
+
     auto from_it = map_threads_.find(from_map);
-    if (from_it != map_threads_.end()) {
+    if (from_it != map_threads_.end())
         from_it->second->remove_player(channel_id);
-    }
-    
-    // 새 맵에 추가
+
     auto to_it = map_threads_.find(to_map);
     if (to_it != map_threads_.end()) {
-        // 플레이어 엔티티 찾기
-        Entity player_entity = game_service_.create_entity(); // 임시
         to_it->second->add_player(channel_id, player_entity);
-        
-        // 플레이어 맵 정보 업데이트
         update_player_map(channel_id, to_map);
-        
-        std::cout << "[MapThreadManager] Moved player " << channel_id 
+        std::cout << "[MapThreadManager] Moved player " << channel_id
                   << " from map " << from_map << " to map " << to_map << std::endl;
     }
 }

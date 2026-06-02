@@ -41,8 +41,10 @@ struct MapTask {
 
 class MapThread {
 public:
-    MapThread(int map_id, const std::string& map_name, 
-              float width, float height, int max_players);
+    MapThread(int map_id, const std::string& map_name,
+              float width, float height, int max_players,
+              int max_monsters = 50, float spawn_interval = 30.0f,
+              bool monster_spawn = true, int tick_ms = 16);
     ~MapThread();
     
     // 스레드 시작/종료
@@ -136,8 +138,9 @@ private:
     std::atomic<int> npc_count_{0};
     std::atomic<int> item_count_{0};
     
-    // ECS 서비스 참조
-    GameService& game_service_;
+    // 맵 전용 ECS 인스턴스 — 몬스터/NPC/아이템 등 맵-로컬 엔티티 소유
+    // 플레이어 엔티티는 game_server의 글로벌 GameService에서 관리
+    GameService game_service_local_;
     
     // 맵 컴포넌트 참조
     MapComponent* map_component_;
@@ -154,10 +157,15 @@ private:
     bool is_object_in_bounds(Entity entity);
     void clamp_object_to_bounds(Entity entity);
     
-    // 스폰 타이머
+    // 스폰 설정 (data/Map.csv에서 로드)
+    int   max_monsters_{50};
+    float spawn_interval_{30.0f};
+    bool  monster_spawn_{true};
     float spawn_timer_{0.0f};
-    static constexpr float SPAWN_INTERVAL = 30.0f; // 30초마다 스폰
-    static constexpr int   MAX_MONSTERS   = 10;    // 맵당 최대 몬스터 수
+    std::uint32_t spawn_seed_{42};
+
+    // tick 설정 (server_config.tick_rate에서 계산)
+    int tick_ms_{16};
 
     // 맵 이벤트 처리 헬퍼
     void spawn_monsters(float delta_time);

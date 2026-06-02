@@ -107,7 +107,7 @@ void test_map_transfer() {
     print_test_result("Player not in map2 before transfer", player_count_map2 == 0);
     
     // 맵 이동
-    manager.move_player_to_map(123, 1, 2);
+    manager.move_player_to_map(123, 1, 2, 0);
     sleep_ms(50);
     
     player_count_map1 = manager.get_map_player_count(1);
@@ -281,7 +281,7 @@ void test_integration() {
     sleep_ms(100);
     
     // 맵 이동 테스트
-    main_manager.handle_map_transfer(123, 1, 2);
+    main_manager.handle_map_transfer(123, 1, 2, 0);
     sleep_ms(100);
     
     print_test_result("Integration test", true);

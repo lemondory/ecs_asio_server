@@ -1,35 +1,45 @@
 #include "map_thread.hpp"
 #include "../components/health.hpp"
 #include "common/log.hpp"
+#include "server/data/data_manager.hpp"
 #include <chrono>
 #include <algorithm>
 
 namespace lemondory::game {
 
-MapThread::MapThread(int map_id, const std::string& map_name, 
-                    float width, float height, int max_players)
-    : map_id_(map_id), map_name_(map_name), width_(width), height_(height), 
-      max_players_(max_players), game_service_(GameService::instance()) {
-    
+MapThread::MapThread(int map_id, const std::string& map_name,
+                    float width, float height, int max_players,
+                    int max_monsters, float spawn_interval, bool monster_spawn,
+                    int tick_ms)
+    : map_id_(map_id), map_name_(map_name), width_(width), height_(height),
+      max_players_(max_players),
+      max_monsters_(max_monsters), spawn_interval_(spawn_interval),
+      monster_spawn_(monster_spawn),
+      spawn_seed_(static_cast<std::uint32_t>(map_id) * 1664525u + 42u),
+      tick_ms_(tick_ms) {
+
+    // 맵 전용 ECS 초기화 (글로벌 싱글톤과 독립)
+    game_service_local_.initialize();
+
+    // 몬스터/NPC/아이템 컴포넌트 사전 예약 — 런타임 reallocation 방지
+    const std::size_t monster_cap = static_cast<std::size_t>(max_monsters_) + 16;
+    game_service_local_.reserve_component<Position>(monster_cap);
+    game_service_local_.reserve_component<Velocity>(monster_cap);
+    game_service_local_.reserve_component<Health>(monster_cap);
+    game_service_local_.reserve_component<Monster>(monster_cap);
+    game_service_local_.reserve_component<GameObject>(monster_cap);
+
     // 맵 엔티티 생성
-    map_entity_ = game_service_.create_entity();
-    
-    // 맵 컴포넌트 추가
-    game_service_.add_component(map_entity_, 
-        std::make_unique<MapComponent>(map_id, map_name, width, height, max_players));
-    
-    // 맵 오브젝트 관리 컴포넌트 추가
-    game_service_.add_component(map_entity_, std::make_unique<MapObjectsComponent>());
-    
-    // 맵 경계 컴포넌트 추가
-    game_service_.add_component(map_entity_, 
-        std::make_unique<MapBoundsComponent>(0, 0, 0, width, height, 1000.0f));
-    
-    // 컴포넌트 참조 저장
-    map_component_ = game_service_.get_component<MapComponent>(map_entity_);
-    map_objects_component_ = game_service_.get_component<MapObjectsComponent>(map_entity_);
-    map_bounds_component_ = game_service_.get_component<MapBoundsComponent>(map_entity_);
-    
+    map_entity_ = game_service_local_.create_entity();
+
+    game_service_local_.emplace_component<MapComponent>(map_entity_, map_id, map_name, width, height, max_players);
+    game_service_local_.emplace_component<MapObjectsComponent>(map_entity_);
+    game_service_local_.emplace_component<MapBoundsComponent>(map_entity_, 0.f, 0.f, 0.f, width, height, height);
+
+    map_component_       = game_service_local_.get_component<MapComponent>(map_entity_);
+    map_objects_component_ = game_service_local_.get_component<MapObjectsComponent>(map_entity_);
+    map_bounds_component_  = game_service_local_.get_component<MapBoundsComponent>(map_entity_);
+
     LOGI("MapThread created: map={} ({})", map_id, map_name);
 }
 
@@ -218,8 +228,7 @@ void MapThread::thread_loop() {
         // 3. 맵 업데이트
         update_map(delta_time);
         
-        // 4. 프레임 레이트 제한 (60 FPS)
-        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        std::this_thread::sleep_for(std::chrono::milliseconds(tick_ms_));
     }
     
     LOGD("MapThread loop ended: map={}", map_id_);
@@ -269,8 +278,8 @@ void MapThread::handle_chat_packet(int channel_id, const std::string& data) {
 
 void MapThread::update_object_position(Entity entity, float delta_time) {
     // 오브젝트 위치 업데이트
-    auto* position = game_service_.get_component<Position>(entity);
-    auto* velocity = game_service_.get_component<Velocity>(entity);
+    auto* position = game_service_local_.get_component<Position>(entity);
+    auto* velocity = game_service_local_.get_component<Velocity>(entity);
     
     if (position && velocity) {
         position->x += velocity->x * delta_time;
@@ -302,7 +311,7 @@ void MapThread::handle_object_interactions(Entity entity) {
 bool MapThread::is_object_in_bounds(Entity entity) {
     if (!map_bounds_component_) return true;
     
-    auto* position = game_service_.get_component<Position>(entity);
+    auto* position = game_service_local_.get_component<Position>(entity);
     if (!position) return true;
     
     return map_bounds_component_->is_inside(position->x, position->y, position->z);
@@ -311,7 +320,7 @@ bool MapThread::is_object_in_bounds(Entity entity) {
 void MapThread::clamp_object_to_bounds(Entity entity) {
     if (!map_bounds_component_) return;
     
-    auto* position = game_service_.get_component<Position>(entity);
+    auto* position = game_service_local_.get_component<Position>(entity);
     if (!position) return;
     
     position->x = std::clamp(position->x, map_bounds_component_->min_x, map_bounds_component_->max_x);
@@ -320,34 +329,46 @@ void MapThread::clamp_object_to_bounds(Entity entity) {
 }
 
 void MapThread::spawn_monsters(float delta_time) {
+    if (!monster_spawn_) return;
+
     spawn_timer_ += delta_time;
-    if (spawn_timer_ < SPAWN_INTERVAL) return;
+    if (spawn_timer_ < spawn_interval_) return;
     spawn_timer_ = 0.0f;
 
     std::lock_guard<std::mutex> lock(objects_mutex_);
-    if (static_cast<int>(local_monsters_.size()) >= MAX_MONSTERS) return;
+    if (static_cast<int>(local_monsters_.size()) >= max_monsters_) return;
 
-    // 맵 범위 내 랜덤 위치 계산 (간단한 선형 분포)
-    static std::uint32_t seed = 42;
-    auto next_rand = [&](float max) -> float {
-        seed = seed * 1664525u + 1013904223u;
-        return (seed % 10000) / 10000.0f * max;
+    // 스폰 테이블 조회 (MonsterSpawn.csv weight 반영)
+    const auto spawn_table =
+        lemondory::data::DataManager::instance().build_spawn_table(map_id_);
+    if (spawn_table.empty()) return;
+
+    // 맵별 독립 LCG 랜덤 (spawn_seed_ = map_id 기반 초기값)
+    auto next_u = [this]() -> std::uint32_t {
+        spawn_seed_ = spawn_seed_ * 1664525u + 1013904223u;
+        return spawn_seed_;
+    };
+    auto rand_f = [&](float max) -> float {
+        return (next_u() % 10000u) / 10000.0f * max;
     };
 
-    int spawn_count = std::min(3, MAX_MONSTERS - static_cast<int>(local_monsters_.size()));
+    const int remain = max_monsters_ - static_cast<int>(local_monsters_.size());
+    const int spawn_count = std::min(3, remain);
     for (int i = 0; i < spawn_count; ++i) {
-        Entity entity = game_service_.create_entity();
+        const auto* mdata = spawn_table[next_u() % spawn_table.size()];
 
-        float x = next_rand(width_);
-        float y = 0.0f;
-        float z = next_rand(height_);
+        Entity entity = game_service_local_.create_entity();
+        float x = rand_f(width_);
+        float z = rand_f(height_);
 
-        game_service_.add_component(entity, std::make_unique<Position>(x, y, z));
-        game_service_.add_component(entity, std::make_unique<Velocity>(0.0f, 0.0f, 0.0f));
-        game_service_.add_component(entity, std::make_unique<Health>(100, 0));
-        game_service_.add_component(entity, std::make_unique<Monster>(1, 1)); // type=1(Goblin), level=1
-        game_service_.add_component(entity,
-            std::make_unique<GameObject>(GameObjectType::MONSTER, "Goblin", entity));
+        game_service_local_.emplace_component<Position>(entity, x, 0.0f, z);
+        game_service_local_.emplace_component<Velocity>(entity, 0.0f, 0.0f, 0.0f);
+        game_service_local_.emplace_component<Health>(
+            entity, static_cast<std::uint32_t>(mdata->hp), 0u);
+        game_service_local_.emplace_component<Monster>(
+            entity, mdata->id, 1u);
+        game_service_local_.emplace_component<GameObject>(
+            entity, GameObjectType::MONSTER, mdata->name, entity);
 
         local_monsters_.insert(entity);
         monster_count_.store(static_cast<int>(local_monsters_.size()));

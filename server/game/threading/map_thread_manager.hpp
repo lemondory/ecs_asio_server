@@ -15,8 +15,10 @@ public:
     ~MapThreadManager();
     
     // 맵 스레드 생성/삭제
-    void create_map_thread(int map_id, const std::string& map_name, 
-                          float width, float height, int max_players = 100);
+    void create_map_thread(int map_id, const std::string& map_name,
+                          float width, float height, int max_players = 100,
+                          int max_monsters = 50, float spawn_interval = 30.0f,
+                          bool monster_spawn = true, int tick_ms = 16);
     void destroy_map_thread(int map_id);
     
     // 패킷 전달
@@ -26,7 +28,7 @@ public:
     // 플레이어 관리
     void add_player_to_map(int map_id, int channel_id, Entity player_entity);
     void remove_player_from_map(int map_id, int channel_id);
-    void move_player_to_map(int channel_id, int from_map, int to_map);
+    void move_player_to_map(int channel_id, int from_map, int to_map, Entity player_entity);
     
     // 맵 상태 조회
     bool is_map_thread_running(int map_id) const;
@@ -42,12 +44,11 @@ private:
     std::unordered_map<int, std::unique_ptr<MapThread>> map_threads_;
     mutable std::mutex map_threads_mutex_;
     
-    // ECS 서비스 참조
-    GameService& game_service_;
-    
     // 맵 스레드 생성/삭제 헬퍼
-    void start_map_thread(int map_id, const std::string& map_name, 
-                         float width, float height, int max_players);
+    void start_map_thread(int map_id, const std::string& map_name,
+                         float width, float height, int max_players,
+                         int max_monsters, float spawn_interval, bool monster_spawn,
+                         int tick_ms);
     void stop_map_thread(int map_id);
     
     // 플레이어 맵 정보 관리

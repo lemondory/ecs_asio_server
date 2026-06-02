@@ -322,7 +322,7 @@ void test_map_transfer() {
             sleep_ms(10);
             
             // 맵 2로 이동
-            main_manager.handle_map_transfer(player_id, 1, 2);
+            main_manager.handle_map_transfer(player_id, 1, 2, 0);
             sleep_ms(10);
             
             // 맵 2에서 패킷 전달

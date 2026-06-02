@@ -13,13 +13,14 @@ MainThreadManager::~MainThreadManager() {
     stop();
 }
 
-void MainThreadManager::start() {
+void MainThreadManager::start(int tick_ms) {
     if (running_) return;
-    
+
+    tick_ms_ = tick_ms;
     running_ = true;
     main_thread_ = std::thread(&MainThreadManager::main_loop, this);
-    
-    LOGI("MainThreadManager started");
+
+    LOGI("MainThreadManager started (tick={}ms)", tick_ms_);
 }
 
 void MainThreadManager::stop() {
@@ -56,9 +57,14 @@ void MainThreadManager::add_global_task(std::function<void()> task) {
     global_tasks_.push(std::move(task));
 }
 
-void MainThreadManager::create_map_thread(int map_id, const std::string& map_name) {
+void MainThreadManager::create_map_thread(int map_id, const std::string& map_name,
+                                         float width, float height, int max_players,
+                                         int max_monsters, float spawn_interval,
+                                         bool monster_spawn, int tick_ms) {
     if (map_thread_manager_) {
-        map_thread_manager_->create_map_thread(map_id, map_name, 1000.0f, 1000.0f, 100);
+        map_thread_manager_->create_map_thread(
+            map_id, map_name, width, height, max_players,
+            max_monsters, spawn_interval, monster_spawn, tick_ms);
     }
 }
 
@@ -100,14 +106,12 @@ void MainThreadManager::handle_friend_system(int channel_id, const std::string& 
     });
 }
 
-void MainThreadManager::handle_map_transfer(int channel_id, int from_map, int to_map) {
-    add_task([this, channel_id, from_map, to_map]() {
+void MainThreadManager::handle_map_transfer(int channel_id, int from_map, int to_map, Entity player_entity) {
+    add_task([this, channel_id, from_map, to_map, player_entity]() {
         LOGI("[MapTransfer] Player {} from map {} to map {}", channel_id, from_map, to_map);
-        
-        if (map_thread_manager_) {
-            map_thread_manager_->move_player_to_map(channel_id, from_map, to_map);
-        }
-    }, 1); // 높은 우선순위
+        if (map_thread_manager_)
+            map_thread_manager_->move_player_to_map(channel_id, from_map, to_map, player_entity);
+    }, 1);
 }
 
 void MainThreadManager::update_ecs(float delta_time) {
@@ -146,14 +150,8 @@ void MainThreadManager::main_loop() {
         
         // 5. 작업 큐 처리
         process_task_queue();
-        
-        // 6. 맵 스레드 업데이트
-        if (map_thread_manager_) {
-            map_thread_manager_->update_all_map_threads(delta_time);
-        }
-        
-        // 7. 프레임 레이트 제한 (60 FPS)
-        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(tick_ms_));
     }
     
     LOGD("MainThreadManager loop ended");
