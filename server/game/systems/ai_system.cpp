@@ -4,6 +4,7 @@
 #include "../components/game_object.hpp"
 #include "../components/health.hpp"
 #include "../ecs/game_service.hpp"
+#include "server/data/data_manager.hpp"
 #include <algorithm>
 #include <cmath>
 #include <random>
@@ -52,7 +53,7 @@ void AISystem::move_towards_target(Entity entity, float speed) {
         auto* velocity = component_manager().get_component<Velocity>(entity);
         if (!velocity) {
             // Velocity 컴포넌트가 없으면 생성
-            component_manager().add_component(entity, std::make_unique<Velocity>());
+            component_manager().emplace_component<Velocity>(entity);
             velocity = component_manager().get_component<Velocity>(entity);
         }
         
@@ -88,10 +89,10 @@ void AISystem::patrol(Entity entity, float /*x*/, float /*y*/, float /*z*/, floa
     // 속도 설정
     auto* velocity = component_manager().get_component<Velocity>(entity);
     if (!velocity) {
-        component_manager().add_component(entity, std::make_unique<Velocity>());
+        component_manager().emplace_component<Velocity>(entity);
         velocity = component_manager().get_component<Velocity>(entity);
     }
-    
+
     if (velocity) {
         velocity->x = dx * 0.5f; // 순찰 속도
         velocity->y = dy * 0.5f;
@@ -124,7 +125,9 @@ void AISystem::update_npc_ai(float /*delta_time*/) {
     auto npcs = component_manager().get_components<NPC>();
     for (auto& [entity, npc] : npcs) {
         // NPC는 기본적으로 순찰
-        patrol(entity, 0.0f, 0.0f, 0.0f, 10.0f);
+        const float range =
+            lemondory::data::DataManager::instance().get_const("NPC_PATROL_RANGE", 10.0f);
+        patrol(entity, 0.0f, 0.0f, 0.0f, range);
     }
 }
 

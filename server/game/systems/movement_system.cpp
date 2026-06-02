@@ -3,6 +3,8 @@
 #include "../components/transform.hpp"
 #include "../components/game_object.hpp"
 #include "../ecs/game_service.hpp"
+#include "server/data/data_manager.hpp"
+#include <algorithm>
 #include <algorithm>
 #include <cmath>
 
@@ -78,29 +80,26 @@ void MovementSystem::update_positions(float delta_time) {
 }
 
 void MovementSystem::check_boundaries() {
-    // 맵 경계 검사 (임시로 -1000 ~ 1000 범위)
-    const float MIN_BOUND = -1000.0f;
-    const float MAX_BOUND = 1000.0f;
-    
+    // 글로벌 GameService의 플레이어 엔티티만 처리
+    // (몬스터/NPC는 MapThread 로컬 ECS에서 MapBoundsComponent로 처리)
+    const auto& dm = lemondory::data::DataManager::instance();
+
     auto positions = component_manager().get_components<Position>();
     for (auto& [entity, position] : positions) {
-        // X 경계
-        if (position->x < MIN_BOUND) position->x = MIN_BOUND;
-        if (position->x > MAX_BOUND) position->x = MAX_BOUND;
-        
-        // Y 경계
-        if (position->y < MIN_BOUND) position->y = MIN_BOUND;
-        if (position->y > MAX_BOUND) position->y = MAX_BOUND;
-        
-        // Z 경계
-        if (position->z < MIN_BOUND) position->z = MIN_BOUND;
-        if (position->z > MAX_BOUND) position->z = MAX_BOUND;
+        const auto* player = component_manager().get_component<Player>(entity);
+        if (!player) continue;
+
+        const auto* mdata = dm.get_map(static_cast<int>(player->map_id));
+        if (!mdata) continue;
+
+        position->x = std::clamp(position->x, 0.0f, mdata->width);
+        position->z = std::clamp(position->z, 0.0f, mdata->height);
     }
 }
 
 void MovementSystem::handle_collisions() {
-    // 간단한 충돌 검사 (거리 기반)
-    const float COLLISION_RADIUS = 1.0f;
+    const float COLLISION_RADIUS =
+        lemondory::data::DataManager::instance().get_const("COLLISION_RADIUS", 1.0f);
     
     auto positions = component_manager().get_components<Position>();
     std::vector<std::pair<Entity, Position*>> entities;

@@ -1,0 +1,4 @@
+name,value
+string,float
+COLLISION_RADIUS,1.0
+NPC_PATROL_RANGE,10.0
