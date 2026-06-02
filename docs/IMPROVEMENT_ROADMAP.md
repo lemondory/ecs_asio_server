@@ -84,7 +84,8 @@
 - **길드 시스템** : `protocol_guild.hpp` 정의 완료, 핸들러 인메모리 구현 (DB 연동 미완)
 - **인벤토리** : 프로토콜 미정의
 - **전투 결과 검증** : 서버-권위 구조 미적용 (클라이언트 신뢰 방식)
-- **MapThread-ECS 동시성** : MapThread가 GameService::instance() 접근 — 잠재적 data race (Phase 3에서 설계 검토 필요)
+- ~~**MapThread-ECS 동시성**~~ : 각 MapThread가 `game_service_local_`(독립 인스턴스) 소유 → 글로벌 싱글톤 data race 해소 ✓
+- ~~**ECS 컴포넌트 메모리 관리**~~ : `FlatPool<T>` 도입 — 블록 단위 사전 할당, O(1) 재사용, `add_component` → `emplace_component` API 전환 ✓
 
 ---
 
