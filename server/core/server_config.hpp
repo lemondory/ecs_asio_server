@@ -1,6 +1,5 @@
 #pragma once
 #include <string>
-#include <vector>
 #include <unordered_map>
 #include <cstdint>
 
@@ -26,14 +25,6 @@ struct RedisConfig {
     int         db_index        = 0;
     int         token_ttl_sec   = 7200;   // 세션 토큰 TTL (비정상 종료 안전망)
     int         player_ttl_sec  = 1800;   // 플레이어 데이터 캐시 TTL
-};
-
-struct MapConfig {
-    int         id          = 0;
-    std::string name        = "";
-    float       width       = 1000.0f;
-    float       height      = 1000.0f;
-    int         max_players = 100;
 };
 
 struct ServerConfig {
@@ -68,13 +59,6 @@ struct ServerConfig {
         {"common", {}},
     };
     RedisConfig redis;
-
-    // ── 맵 목록 ──────────────────────────────────────────────────
-    std::vector<MapConfig> maps = {
-        {1, "Forest",  1000.0f, 1000.0f, 100},
-        {2, "Dungeon",  800.0f,  800.0f,  50},
-        {3, "City",   1500.0f, 1500.0f, 200},
-    };
 
     // config/server_config.json 파일이 있으면 덮어쓰고,
     // 없거나 파싱 실패하면 위 기본값 그대로 사용

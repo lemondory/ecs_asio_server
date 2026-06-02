@@ -27,15 +27,9 @@ Entity MapSystem::create_map(int map_id, const std::string& map_name,
     Entity map_entity = game_service().create_entity();
     
     // 맵 컴포넌트 추가
-    game_service().add_component(map_entity, 
-        std::make_unique<MapComponent>(map_id, map_name, width, height, max_players));
-    
-    // 맵 오브젝트 관리 컴포넌트 추가
-    game_service().add_component(map_entity, std::make_unique<MapObjectsComponent>());
-    
-    // 맵 경계 컴포넌트 추가 (기본값)
-    game_service().add_component(map_entity, 
-        std::make_unique<MapBoundsComponent>(0, 0, 0, width, height, 1000.0f));
+    game_service().emplace_component<MapComponent>(map_entity, map_id, map_name, width, height, max_players);
+    game_service().emplace_component<MapObjectsComponent>(map_entity);
+    game_service().emplace_component<MapBoundsComponent>(map_entity, 0.f, 0.f, 0.f, width, height, height);
     
     std::cout << "[MapSystem] Created map: " << map_name << " (ID: " << map_id << ")" << std::endl;
     return map_entity;

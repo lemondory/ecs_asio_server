@@ -100,6 +100,7 @@ endif()
 # ─── 게임 서버 라이브러리 ────────────────────────────────────────────────────
 
 add_library(lemondory_game
+  server/data/data_manager.cpp
   server/game/ecs/entity.cpp
   server/game/ecs/component.cpp
   server/game/ecs/system.cpp

@@ -1,0 +1,7 @@
+monster_id,name,hp,atk,def,detect_range,attack_range,chase_range,exp_reward
+uint32,string,int32,int32,int32,float,float,float,uint32
+1001,Goblin,100,10,5,15.0,2.0,20.0,30
+1002,Wolf,200,20,8,20.0,2.5,25.0,60
+1003,Orc,350,35,15,12.0,3.0,18.0,100
+1004,Skeleton,150,15,10,18.0,2.5,22.0,50
+1005,DarkKnight,800,80,40,10.0,4.0,15.0,300

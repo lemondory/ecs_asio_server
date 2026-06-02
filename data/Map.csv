@@ -1,0 +1,5 @@
+map_id,name,type,width,height,max_players,max_monsters,spawn_interval,monster_spawn
+int32,string,string,float,float,int32,int32,float,bool
+1,Forest,field,1000.0,1000.0,100,50,30.0,1
+2,Dungeon,dungeon,800.0,800.0,50,30,20.0,1
+3,City,town,1500.0,1500.0,200,0,0.0,0

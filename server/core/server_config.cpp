@@ -53,20 +53,6 @@ ServerConfig ServerConfig::load(const std::string& path) {
         if (g->contains("memory_pool_size")) cfg.memory_pool_size = (*g)["memory_pool_size"].get<int>();
     }
 
-    // ── 맵 목록 ──────────────────────────────────────────────────
-    if (j.contains("maps") && j["maps"].is_array() && !j["maps"].empty()) {
-        cfg.maps.clear();
-        for (const auto& m : j["maps"]) {
-            MapConfig mc;
-            if (m.contains("id"))          mc.id          = m["id"].get<int>();
-            if (m.contains("name"))        mc.name        = m["name"].get<std::string>();
-            if (m.contains("width"))       mc.width       = m["width"].get<float>();
-            if (m.contains("height"))      mc.height      = m["height"].get<float>();
-            if (m.contains("max_players")) mc.max_players = m["max_players"].get<int>();
-            cfg.maps.push_back(mc);
-        }
-    }
-
     // ── DB (role별 개별 설정) ─────────────────────────────────────
     if (j.contains("databases") && j["databases"].is_object()) {
         for (auto& [key, val] : j["databases"].items()) {

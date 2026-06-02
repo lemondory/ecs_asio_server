@@ -3,6 +3,7 @@
 #include "common/protocol/protocol_player.hpp"
 #include "common/protocol/protocol_combat.hpp"
 #include "common/protocol/protocol_map.hpp"
+#include "server/data/data_manager.hpp"
 #include <cstring>
 
 namespace lemondory::game {
@@ -130,19 +131,24 @@ void game_server::handle_login(int channel_id, const char* data, std::size_t siz
                         Entity player = 0;
                         if (use_ecs) {
                             player = game_service().create_entity();
-                            game_service().add_component(player,
-                                std::make_unique<Position>(spawn_x, spawn_y, spawn_z));
-                            game_service().add_component(player,
-                                std::make_unique<Velocity>(0.f, 0.f, 0.f));
-                            game_service().add_component(player,
-                                std::make_unique<Player>(player_name,
-                                    static_cast<std::uint32_t>(db_id > 0 ? db_id : player),
-                                    channel_id,
-                                    static_cast<std::uint32_t>(spawn_map_id)));
-                            auto health = std::make_unique<Health>(
-                                static_cast<std::uint32_t>(spawn_max_hp), 50u);
-                            health->hp = static_cast<std::uint32_t>(spawn_hp);
-                            game_service().add_component(player, std::move(health));
+                            game_service().emplace_component<Position>(player, spawn_x, spawn_y, spawn_z);
+                            game_service().emplace_component<Velocity>(player, 0.f, 0.f, 0.f);
+                            game_service().emplace_component<Player>(player,
+                                player_name,
+                                static_cast<std::uint32_t>(db_id > 0 ? db_id : player),
+                                channel_id,
+                                static_cast<std::uint32_t>(spawn_map_id));
+                            {
+                                // DB MP 미지원 시 PlayerLevel.csv 레벨 1 MP 사용
+                                const auto* lv =
+                                    lemondory::data::DataManager::instance().get_player_level(1);
+                                const uint32_t init_mp =
+                                    lv ? static_cast<uint32_t>(lv->mp) : 50u;
+                                game_service().emplace_component<Health>(player,
+                                    static_cast<std::uint32_t>(spawn_max_hp), init_mp);
+                            }
+                            if (auto* h = game_service().get_component<Health>(player))
+                                h->hp = static_cast<std::uint32_t>(spawn_hp);
                             {
                                 std::lock_guard<std::mutex> lk(mtx_);
                                 channel_to_entity_[channel_id] = player;
@@ -175,13 +181,17 @@ void game_server::handle_login(int channel_id, const char* data, std::size_t siz
     Entity player = 0;
     if (config_.use_ecs) {
         player = game_service().create_entity();
-        game_service().add_component(player, std::make_unique<Position>(0.f, 0.f, 0.f));
-        game_service().add_component(player, std::make_unique<Velocity>(0.f, 0.f, 0.f));
-        game_service().add_component(player,
-            std::make_unique<Player>(req.player_name,
-                static_cast<std::uint32_t>(player), channel_id, 1u));
-        auto health = std::make_unique<Health>(100u, 50u);
-        game_service().add_component(player, std::move(health));
+        game_service().emplace_component<Position>(player, 0.f, 0.f, 0.f);
+        game_service().emplace_component<Velocity>(player, 0.f, 0.f, 0.f);
+        game_service().emplace_component<Player>(player,
+            req.player_name, static_cast<std::uint32_t>(player), channel_id, 1u);
+        {
+            const auto* lv =
+                lemondory::data::DataManager::instance().get_player_level(1);
+            const uint32_t init_hp = lv ? static_cast<uint32_t>(lv->hp) : 100u;
+            const uint32_t init_mp = lv ? static_cast<uint32_t>(lv->mp) : 50u;
+            game_service().emplace_component<Health>(player, init_hp, init_mp);
+        }
         {
             std::lock_guard<std::mutex> lk(mtx_);
             channel_to_entity_[channel_id] = player;
@@ -338,10 +348,7 @@ void game_server::handle_map_enter(int channel_id, const char* data, std::size_t
     int target_map_id = static_cast<int>(req.map_id);
     LOGI("Map enter request: channel={} -> map={}", channel_id, target_map_id);
 
-    const lemondory::core::MapConfig* map_cfg = nullptr;
-    for (const auto& m : config_.maps) {
-        if (m.id == target_map_id) { map_cfg = &m; break; }
-    }
+    const auto* map_cfg = lemondory::data::DataManager::instance().get_map(target_map_id);
 
     if (!map_cfg) {
         LOGW("Map {} not found", target_map_id);
@@ -353,15 +360,19 @@ void game_server::handle_map_enter(int channel_id, const char* data, std::size_t
 
     if (main_thread_manager_) {
         int current_map = get_player_map(channel_id);
-        if (current_map != target_map_id)
+        if (current_map != target_map_id) {
             update_player_map(channel_id, target_map_id);
-    }
 
-    {
-        std::lock_guard<std::mutex> lk(mtx_);
-        if (auto it = channel_to_entity_.find(channel_id); it != channel_to_entity_.end()) {
-            if (auto* player = game_service().get_component<Player>(it->second))
-                player->map_id = static_cast<std::uint32_t>(target_map_id);
+            Entity entity = 0;
+            {
+                std::lock_guard<std::mutex> lk(mtx_);
+                if (auto it = channel_to_entity_.find(channel_id); it != channel_to_entity_.end()) {
+                    entity = it->second;
+                    if (auto* player = game_service().get_component<Player>(entity))
+                        player->map_id = static_cast<std::uint32_t>(target_map_id);
+                }
+            }
+            main_thread_manager_->handle_map_transfer(channel_id, current_map, target_map_id, entity);
         }
     }
 

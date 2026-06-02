@@ -1,5 +1,6 @@
 #include "game_server.hpp"
 #include "common/log.hpp"
+#include "server/data/data_manager.hpp"
 #include <cstring>
 
 namespace lemondory::game {
@@ -289,13 +290,32 @@ void game_server::broadcast_except(int exclude_channel_id, std::uint16_t cmd, co
 // ── 스레딩 시스템 ────────────────────────────────────────────────────────────
 
 void game_server::initialize_threading_system() {
+    // 플레이어 컴포넌트: max_connections 기준으로 사전 예약 → 런타임 reallocation 없음
+    const std::size_t player_cap = static_cast<std::size_t>(config_.max_connections) + 16;
+    auto& gs = game_service();
+    gs.reserve_component<Position>(player_cap);
+    gs.reserve_component<Velocity>(player_cap);
+    gs.reserve_component<Health>(player_cap);
+    gs.reserve_component<Player>(player_cap);
+    gs.reserve_component<GameObject>(player_cap);
+    LOGI("ECS component stores reserved for {} players", player_cap);
+
+    // 게임 데이터 로드 (data/Map.csv, Monster.csv, MonsterSpawn.csv)
+    lemondory::data::DataManager::instance().load("data");
+
+    const int tick_ms = (config_.tick_rate > 0) ? (1000 / config_.tick_rate) : 16;
+
     main_thread_manager_ = std::make_unique<MainThreadManager>();
-    main_thread_manager_->start();
+    main_thread_manager_->start(tick_ms);
 
-    for (const auto& m : config_.maps)
-        main_thread_manager_->create_map_thread(m.id, m.name);
+    const auto& maps = lemondory::data::DataManager::instance().all_maps();
+    for (const auto& m : maps) {
+        main_thread_manager_->create_map_thread(
+            m.id, m.name, m.width, m.height, m.max_players,
+            m.max_monsters, m.spawn_interval, m.monster_spawn, tick_ms);
+    }
 
-    LOGI("Threading system initialized with {} map(s).", config_.maps.size());
+    LOGI("Threading system initialized with {} map(s).", maps.size());
 }
 
 void game_server::shutdown_threading_system() {

@@ -59,12 +59,8 @@
     "port":           16379,      // dev 포트: docker-compose.dev.yml 참고
     "password":       "",
     "db_index":       0,
-    "token_ttl_sec":  7200,       // 세션 토큰 TTL (2h) — 비정상 종료 안전망
-    "player_ttl_sec": 1800        // 플레이어 데이터 캐시 TTL (30min)
-  },
-  "maps": [
-    { "id": 1, "name": "Forest",  "width": 1000.0, "height": 1000.0, "max_players": 100 },
-    { "id": 2, "name": "Dungeon", "width": 800.0,  "height": 800.0,  "max_players": 50  },
-    { "id": 3, "name": "City",    "width": 1500.0, "height": 1500.0, "max_players": 200 }
-  ]
+    "token_ttl_sec":  300,        // dev: 5min (라이브 기본값: 7200 = 2h)
+    "player_ttl_sec": 60          // dev: 1min (라이브 기본값: 1800 = 30min)
+  }
+  // 맵 목록 및 게임 데이터는 data/Map.csv 에서 관리
 }
