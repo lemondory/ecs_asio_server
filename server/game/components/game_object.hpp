@@ -24,6 +24,7 @@ struct GameObject : public Component {
     std::uint32_t object_id;
     bool is_active;
     
+    GameObject() : type(GameObjectType::PLAYER), object_id(0), is_active(false) {}
     GameObject(GameObjectType type, const std::string& name, std::uint32_t object_id)
         : type(type), name(name), object_id(object_id), is_active(true) {}
     
@@ -43,6 +44,7 @@ struct Player : public Component {
     std::uint32_t map_id;
     int channel_id;  // 네트워크 채널 ID 추가
     
+    Player() : player_id(0), level(1), experience(0), map_id(1), channel_id(-1) {}
     Player(const std::string& name, std::uint32_t id, int channel_id = -1, std::uint32_t map_id = 1)
         : player_name(name), player_id(id), level(1), experience(0), map_id(map_id), channel_id(channel_id) {}
     
@@ -62,6 +64,7 @@ struct Monster : public Component {
     std::uint32_t max_hp;
     std::uint32_t target_entity; // 공격 대상
     
+    Monster() : monster_type(0), level(1), hp(100), max_hp(100), target_entity(0) {}
     Monster(std::uint32_t type, std::uint32_t level = 1)
         : monster_type(type), level(level), hp(100), max_hp(100), target_entity(0) {}
     
@@ -81,6 +84,7 @@ struct NPC : public Component {
     std::uint32_t level;
     bool is_interactable;
     
+    NPC() : npc_type(0), level(1), is_interactable(true) {}
     NPC(std::uint32_t type, const std::string& name)
         : npc_type(type), npc_name(name), level(1), is_interactable(true) {}
     
@@ -100,6 +104,7 @@ struct Item : public Component {
     std::uint32_t quantity;
     bool is_pickupable;
     
+    Item() : item_id(0), item_type(0), quantity(1), is_pickupable(true) {}
     Item(std::uint32_t id, const std::string& name, std::uint32_t type)
         : item_id(id), item_name(name), item_type(type), quantity(1), is_pickupable(true) {}
     

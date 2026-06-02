@@ -31,26 +31,32 @@ public:
     bool is_valid(Entity entity);
     
     // Component 관리
-    template<typename T>
-    void add_component(Entity entity, std::unique_ptr<T> component) {
-        component_manager_->add_component<T>(entity, std::move(component));
+    template<typename T, typename... Args>
+    void emplace_component(Entity entity, Args&&... args) {
+        component_manager_->emplace_component<T>(entity, std::forward<Args>(args)...);
     }
-    
+
+    // 서버 시작 시 한 번 호출 — 런타임 reallocation 방지
+    template<typename T>
+    void reserve_component(std::size_t n) {
+        component_manager_->get_store<T>().reserve_capacity(n);
+    }
+
     template<typename T>
     void remove_component(Entity entity) {
         component_manager_->remove_component<T>(entity);
     }
-    
+
     template<typename T>
     T* get_component(Entity entity) {
         return component_manager_->get_component<T>(entity);
     }
-    
+
     template<typename T>
     bool has_component(Entity entity) const {
         return component_manager_->has_component<T>(entity);
     }
-    
+
     template<typename T>
     auto get_components() {
         return component_manager_->get_components<T>();
@@ -75,7 +81,7 @@ public:
     // 상태
     bool is_initialized() const { return initialized_; }
     
-private:
+public:
     GameService() = default;
     
     // 매니저들

@@ -29,10 +29,10 @@ int main() {
         Entity player = game_service().create_entity();
         
         // 컴포넌트 추가
-        game_service().add_component(player, std::make_unique<Position>(i * 10.0f, 0.0f, 0.0f));
-        game_service().add_component(player, std::make_unique<Velocity>(0.0f, 0.0f, 0.0f));
-        game_service().add_component(player, std::make_unique<Player>("Player" + std::to_string(i), i));
-        game_service().add_component(player, std::make_unique<Health>(100, 50));
+        game_service().emplace_component<Position>(player, i * 10.0f, 0.0f, 0.0f);
+        game_service().emplace_component<Velocity>(player, 0.0f, 0.0f, 0.0f);
+        game_service().emplace_component<Player>(player, "Player" + std::to_string(i), i);
+        game_service().emplace_component<Health>(player, 100, 50);
         
         players.push_back(player);
         std::cout << "Created Player " << i << " (Entity: " << player << ")" << std::endl;
@@ -46,10 +46,10 @@ int main() {
         Entity monster = game_service().create_entity();
         
         // 컴포넌트 추가
-        game_service().add_component(monster, std::make_unique<Position>(i * 15.0f, 0.0f, 0.0f));
-        game_service().add_component(monster, std::make_unique<Velocity>(0.0f, 0.0f, 0.0f));
-        game_service().add_component(monster, std::make_unique<Monster>(i));
-        game_service().add_component(monster, std::make_unique<Health>(50, 25));
+        game_service().emplace_component<Position>(monster, i * 15.0f, 0.0f, 0.0f);
+        game_service().emplace_component<Velocity>(monster, 0.0f, 0.0f, 0.0f);
+        game_service().emplace_component<Monster>(monster, i);
+        game_service().emplace_component<Health>(monster, 50, 25);
         
         monsters.push_back(monster);
         std::cout << "Created Monster " << i << " (Entity: " << monster << ")" << std::endl;

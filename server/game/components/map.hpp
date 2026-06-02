@@ -15,6 +15,7 @@ struct MapComponent : public Component {
     int max_players;
     std::string map_data; // 맵 타일 데이터 등
     
+    MapComponent() : map_id(0), width(0), height(0), max_players(0) {}
     MapComponent(int id, const std::string& name, float w, float h, int max_players = 100)
         : map_id(id), map_name(name), width(w), height(h), max_players(max_players) {}
     
@@ -59,7 +60,8 @@ struct MapBoundsComponent : public Component {
     float min_x, min_y, min_z;
     float max_x, max_y, max_z;
     
-    MapBoundsComponent(float min_x, float min_y, float min_z, 
+    MapBoundsComponent() : min_x(0), min_y(0), min_z(0), max_x(0), max_y(0), max_z(0) {}
+    MapBoundsComponent(float min_x, float min_y, float min_z,
                       float max_x, float max_y, float max_z)
         : min_x(min_x), min_y(min_y), min_z(min_z),
           max_x(max_x), max_y(max_y), max_z(max_z) {}
