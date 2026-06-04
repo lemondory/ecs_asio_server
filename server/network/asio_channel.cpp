@@ -3,7 +3,7 @@
 #include "asio_server.hpp"
 #include "common/network/net_handler.hpp"
 #include "common/network/frame_codec.hpp"
-#include <iostream>
+#include "common/log.hpp"
 
 namespace lemondory::network
 {
@@ -56,9 +56,9 @@ void asio_channel::send(const char* data, int size)
 
     std::vector<char> buffer(data, data + size);
     if (!enqueue_send_(std::move(buffer))) {
-        std::cerr << "[channel] backpressure close id=" << get_channel_id()
-                  << " queued=" << current_queue_bytes.load(std::memory_order_relaxed)
-                  << "B limit=" << max_queue_bytes << "B\n";
+        LOGW("[channel] backpressure close id={} queued={}B limit={}B",
+             get_channel_id(),
+             current_queue_bytes.load(std::memory_order_relaxed), max_queue_bytes);
         force_closes.fetch_add(1, std::memory_order_relaxed);
         close(nullptr, close_function::force_closed);
         return;
@@ -93,16 +93,14 @@ bool asio_channel::close(const void* error, close_function reason)
             self->socket_.shutdown(asio::ip::tcp::socket::shutdown_both, ignored);
             self->socket_.close(ignored);
         } catch (const std::exception& e) {
-            std::cerr << "[channel] error during close id=" << self->get_channel_id()
-                      << " " << e.what() << "\n";
+            LOGE("[channel] error during close id={} {}", self->get_channel_id(), e.what());
         }
     });
 
     try {
         on_close(error, reason);
     } catch (const std::exception& e) {
-        std::cerr << "[channel] error in on_close id=" << get_channel_id()
-                  << " " << e.what() << "\n";
+        LOGE("[channel] error in on_close id={} {}", get_channel_id(), e.what());
     }
     return true;
 }
@@ -133,8 +131,7 @@ void asio_channel::do_read()
     socket_.async_read_some(asio::buffer(read_buffer_),
         [self](std::error_code ec, std::size_t bytes_transferred) {
             if (ec) {
-                std::cerr << "[channel] read error id=" << self->get_channel_id()
-                          << " ec=" << ec.value() << " " << ec.message() << "\n";
+                LOGW("[channel] read error id={} ec={} {}", self->get_channel_id(), ec.value(), ec.message());
                 self->close(&ec, close_function::read);
                 return;
             }
@@ -164,8 +161,7 @@ void asio_channel::do_write()
     asio::async_write(socket_, asio::buffer(buffer),
         [self, buffer = std::move(buffer), batch_msgs](std::error_code ec, std::size_t n) {
             if (ec) {
-                std::cerr << "[channel] write error id=" << self->get_channel_id()
-                          << " ec=" << ec.value() << " " << ec.message() << "\n";
+                LOGW("[channel] write error id={} ec={} {}", self->get_channel_id(), ec.value(), ec.message());
                 self->close(&ec, close_function::write);
                 return;
             }
@@ -246,8 +242,7 @@ void asio_channel::parse_frames_()
 
         if (!crc_ok) {
             drops.fetch_add(1, std::memory_order_relaxed);
-            std::cerr << "[channel] CRC mismatch id=" << get_channel_id()
-                      << " cmd=" << hdr.cmd << " — frame dropped\n";
+            LOGW("[channel] CRC mismatch id={} cmd={} — frame dropped", get_channel_id(), hdr.cmd);
             continue;
         }
 
@@ -277,8 +272,7 @@ void asio_channel::arm_idle_timer()
             std::chrono::duration_cast<std::chrono::milliseconds>(self->idle_limit_).count());
 
         if (idle_ms >= limit_ms) {
-            std::cerr << "[channel] idle timeout id=" << self->get_channel_id()
-                      << " idle_ms=" << idle_ms << "\n";
+            LOGW("[channel] idle timeout id={} idle_ms={}", self->get_channel_id(), idle_ms);
             self->close(nullptr, close_function::timeout);
             return;
         }
@@ -304,14 +298,15 @@ void asio_channel::arm_stats_timer()
     stats_timer_.async_wait([self](const std::error_code& ec) {
         if (ec || self->closed_.load(std::memory_order_relaxed)) return;
 
-        std::cout << "[stats] id=" << self->get_channel_id()
-                  << " q="     << self->current_queue_bytes.load(std::memory_order_relaxed) << "B"
-                  << " peak="  << self->peak_queued.load(std::memory_order_relaxed) << "B"
-                  << " enq="   << self->enq_msgs.load(std::memory_order_relaxed)
-                  << " deq="   << self->deq_msgs.load(std::memory_order_relaxed)
-                  << " drop="  << self->drops.load(std::memory_order_relaxed)
-                  << " fclose="<< self->force_closes.load(std::memory_order_relaxed)
-                  << " sent="  << self->bytes_sent.load(std::memory_order_relaxed) << "\n";
+        LOGD("[stats] id={} q={}B peak={}B enq={} deq={} drop={} fclose={} sent={}",
+             self->get_channel_id(),
+             self->current_queue_bytes.load(std::memory_order_relaxed),
+             self->peak_queued.load(std::memory_order_relaxed),
+             self->enq_msgs.load(std::memory_order_relaxed),
+             self->deq_msgs.load(std::memory_order_relaxed),
+             self->drops.load(std::memory_order_relaxed),
+             self->force_closes.load(std::memory_order_relaxed),
+             self->bytes_sent.load(std::memory_order_relaxed));
 
         self->arm_stats_timer();
     });

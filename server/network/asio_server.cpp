@@ -3,7 +3,7 @@
 #include "asio_channel.hpp"
 #include "common/network/socket_channel_base.hpp"
 #include "common/network/socket_platform.hpp"
-#include <iostream>
+#include "common/log.hpp"
 
 namespace lemondory::network {
 
@@ -31,20 +31,19 @@ bool asio_server::listen(const std::string& ip_address, int port) {
 
     acceptor_ = asio::ip::tcp::acceptor(io_context_);
     acceptor_.open(endpoint.protocol(), ec);
-    if (ec) { std::cerr << "[server] open: " << ec.message() << "\n"; return false; }
+    if (ec) { LOGE("[server] open: {}", ec.message()); return false; }
 
     acceptor_.set_option(asio::socket_base::reuse_address(socket_option_.reuse_address()), ec);
-    if (ec) { std::cerr << "[server] reuse_address: " << ec.message() << "\n"; return false; }
+    if (ec) { LOGE("[server] reuse_address: {}", ec.message()); return false; }
 
     acceptor_.bind(endpoint, ec);
     if (ec) {
-        std::cerr << "[server] bind " << ip_address << ":" << port
-                  << " failed: " << ec.message() << "\n";
+        LOGE("[server] bind {}:{} failed: {}", ip_address, port, ec.message());
         return false;
     }
 
     acceptor_.listen(socket_option_.backlog(), ec);
-    if (ec) { std::cerr << "[server] listen: " << ec.message() << "\n"; return false; }
+    if (ec) { LOGE("[server] listen: {}", ec.message()); return false; }
 
     do_accept();
     return true;
@@ -70,7 +69,7 @@ void asio_server::do_accept()
         [this](asio::error_code ec, asio::ip::tcp::socket socket)
         {
             if (ec) {
-                std::cerr << "[server] accept error: " << ec.message() << "\n";
+                LOGE("[server] accept error: {}", ec.message());
                 do_accept();
                 return;
             }
@@ -95,10 +94,10 @@ void asio_server::do_accept()
             channel->set_close_callback([this, id](const void*, close_function) {
                 std::lock_guard<std::mutex> lk(channel_mutex_);
                 channels_.erase(id);
-                std::cout << "[server] channel " << id << " removed\n";
+                LOGD("[server] channel {} removed", id);
             });
 
-            std::cout << "[server] accepted channel id=" << id << "\n";
+            LOGI("[server] accepted channel id={}", id);
             channel->start();
 
             do_accept();

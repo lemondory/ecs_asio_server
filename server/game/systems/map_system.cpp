@@ -1,6 +1,6 @@
 #include "map_system.hpp"
 #include "../ecs/game_service.hpp"
-#include <iostream>
+#include "common/log.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -31,7 +31,7 @@ Entity MapSystem::create_map(int map_id, const std::string& map_name,
     game_service().emplace_component<MapObjectsComponent>(map_entity);
     game_service().emplace_component<MapBoundsComponent>(map_entity, 0.f, 0.f, 0.f, width, height, height);
     
-    std::cout << "[MapSystem] Created map: " << map_name << " (ID: " << map_id << ")" << std::endl;
+    LOGI("[MapSystem] Created map: {} (ID: {})", map_name, map_id);
     return map_entity;
 }
 
@@ -56,7 +56,7 @@ void MapSystem::destroy_map(Entity map_entity) {
     
     // 맵 엔티티 파괴
     game_service().destroy_entity(map_entity);
-    std::cout << "[MapSystem] Destroyed map entity: " << map_entity << std::endl;
+    LOGD("[MapSystem] Destroyed map entity: {}", static_cast<int>(map_entity));
 }
 
 void MapSystem::add_object_to_map(Entity map_entity, Entity object_entity) {
@@ -75,7 +75,7 @@ void MapSystem::add_object_to_map(Entity map_entity, Entity object_entity) {
     }
     
     cache_dirty_ = true;
-    std::cout << "[MapSystem] Added object " << object_entity << " to map " << map_entity << std::endl;
+    LOGD("[MapSystem] Added object {} to map {}", static_cast<int>(object_entity), static_cast<int>(map_entity));
 }
 
 void MapSystem::remove_object_from_map(Entity map_entity, Entity object_entity) {
@@ -94,7 +94,7 @@ void MapSystem::remove_object_from_map(Entity map_entity, Entity object_entity) 
     }
     
     cache_dirty_ = true;
-    std::cout << "[MapSystem] Removed object " << object_entity << " from map " << map_entity << std::endl;
+    LOGD("[MapSystem] Removed object {} from map {}", static_cast<int>(object_entity), static_cast<int>(map_entity));
 }
 
 std::vector<Entity> MapSystem::get_objects_in_map(Entity map_entity) {

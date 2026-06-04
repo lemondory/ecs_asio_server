@@ -1,5 +1,5 @@
 #include "map_thread_manager.hpp"
-#include <iostream>
+#include "common/log.hpp"
 #include <algorithm>
 
 namespace lemondory::game {
@@ -17,7 +17,7 @@ void MapThreadManager::create_map_thread(int map_id, const std::string& map_name
     std::lock_guard<std::mutex> lock(map_threads_mutex_);
 
     if (map_threads_.find(map_id) != map_threads_.end()) {
-        std::cout << "[MapThreadManager] Map thread " << map_id << " already exists" << std::endl;
+        LOGW("[MapThreadManager] Map thread {} already exists", map_id);
         return;
     }
 
@@ -28,8 +28,7 @@ void MapThreadManager::create_map_thread(int map_id, const std::string& map_name
     
     map_threads_[map_id] = std::move(map_thread);
     
-    std::cout << "[MapThreadManager] Created map thread " << map_id 
-              << " (" << map_name << ")" << std::endl;
+    LOGI("[MapThreadManager] Created map thread {} ({})", map_id, map_name);
 }
 
 void MapThreadManager::destroy_map_thread(int map_id) {
@@ -41,7 +40,7 @@ void MapThreadManager::destroy_map_thread(int map_id) {
         it->second->join();
         map_threads_.erase(it);
         
-        std::cout << "[MapThreadManager] Destroyed map thread " << map_id << std::endl;
+        LOGI("[MapThreadManager] Destroyed map thread {}", map_id);
     }
 }
 
@@ -53,7 +52,7 @@ void MapThreadManager::send_packet_to_map(int map_id, int channel_id, std::uint1
     if (it != map_threads_.end()) {
         it->second->add_packet(channel_id, cmd, data, size);
     } else {
-        std::cout << "[MapThreadManager] Map thread " << map_id << " not found" << std::endl;
+        LOGW("[MapThreadManager] Map thread {} not found", map_id);
     }
 }
 
@@ -67,8 +66,7 @@ void MapThreadManager::add_player_to_map(int map_id, int channel_id, Entity play
         // 플레이어 맵 정보 업데이트
         update_player_map(channel_id, map_id);
         
-        std::cout << "[MapThreadManager] Added player " << channel_id 
-                  << " to map " << map_id << std::endl;
+        LOGD("[MapThreadManager] Added player {} to map {}", channel_id, map_id);
     }
 }
 
@@ -83,8 +81,7 @@ void MapThreadManager::remove_player_from_map(int map_id, int channel_id) {
         std::lock_guard<std::mutex> player_lock(player_map_mutex_);
         player_map_mapping_.erase(channel_id);
         
-        std::cout << "[MapThreadManager] Removed player " << channel_id 
-                  << " from map " << map_id << std::endl;
+        LOGD("[MapThreadManager] Removed player {} from map {}", channel_id, map_id);
     }
 }
 
@@ -99,8 +96,7 @@ void MapThreadManager::move_player_to_map(int channel_id, int from_map, int to_m
     if (to_it != map_threads_.end()) {
         to_it->second->add_player(channel_id, player_entity);
         update_player_map(channel_id, to_map);
-        std::cout << "[MapThreadManager] Moved player " << channel_id
-                  << " from map " << from_map << " to map " << to_map << std::endl;
+        LOGD("[MapThreadManager] Moved player {} from map {} to map {}", channel_id, from_map, to_map);
     }
 }
 
@@ -142,7 +138,7 @@ void MapThreadManager::stop_all_map_threads() {
     }
     
     map_threads_.clear();
-    std::cout << "[MapThreadManager] Stopped all map threads" << std::endl;
+    LOGI("[MapThreadManager] Stopped all map threads");
 }
 
 void MapThreadManager::update_all_map_threads(float delta_time) {
