@@ -38,8 +38,12 @@ public:
     // 전체 맵 스레드 관리
     void stop_all_map_threads();
     void update_all_map_threads(float delta_time);
-    
+
+    // AOI 브로드캐스트 콜백 등록 — 생성된 모든 맵 스레드에 배포
+    void set_sender(SenderFn fn);
+
 private:
+    SenderFn sender_fn_; // 새 맵 스레드 생성 시 자동 주입
     // 맵 스레드 저장소
     std::unordered_map<int, std::unique_ptr<MapThread>> map_threads_;
     mutable std::mutex map_threads_mutex_;

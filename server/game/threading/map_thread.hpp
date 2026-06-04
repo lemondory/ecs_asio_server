@@ -4,15 +4,23 @@
 #include "../components/map.hpp"
 #include "../components/transform.hpp"
 #include "../components/game_object.hpp"
+#include "aoi_grid.hpp"
 #include <queue>
 #include <mutex>
 #include <condition_variable>
 #include <thread>
 #include <atomic>
+#include <functional>
+#include <unordered_map>
 #include <unordered_set>
 #include <string>
 
 namespace lemondory::game {
+
+// 채널에 프레이밍 없이 페이로드를 전송하는 콜백.
+// game_server에서 등록하며, MapThread는 채널/네트워크 세부사항 불필요.
+using SenderFn = std::function<void(int channel_id, std::uint16_t cmd,
+                                    const char* payload, std::size_t size)>;
 
 // 맵 스레드에서 처리할 패킷
 struct MapPacket {
@@ -93,7 +101,10 @@ public:
     // 맵 정보
     Entity get_map_entity() const { return map_entity_; }
     const std::string& get_map_name() const { return map_name_; }
-    
+
+    // 브로드캐스트 콜백 등록 (game_server에서 호출)
+    void set_sender(SenderFn fn) { sender_ = std::move(fn); }
+
 private:
     void thread_loop();
     void process_single_packet(const MapPacket& packet);
@@ -166,6 +177,16 @@ private:
 
     // tick 설정 (server_config.tick_rate에서 계산)
     int tick_ms_{16};
+
+    // AOI 시야 시스템
+    AoiGrid aoi_grid_;
+    SenderFn sender_;
+
+    // 플레이어 위치 캐시 (MapThread 내부 추적용 — 글로벌 GameService 접근 불필요)
+    struct PlayerPos { float x, y, z, rotation; };
+    std::unordered_map<int, Entity>    channel_to_entity_;  // channel_id → Entity
+    std::unordered_map<int, CellKey>   player_cell_;        // channel_id → AOI 셀
+    std::unordered_map<int, PlayerPos> player_pos_;         // channel_id → 마지막 위치
 
     // 맵 이벤트 처리 헬퍼
     void spawn_monsters(float delta_time);

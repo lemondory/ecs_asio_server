@@ -1,9 +1,11 @@
 #include "map_thread.hpp"
 #include "../components/health.hpp"
 #include "common/log.hpp"
+#include "common/protocol/protocol_player.hpp"
 #include "server/data/data_manager.hpp"
 #include <chrono>
 #include <algorithm>
+#include <cstring>
 
 namespace lemondory::game {
 
@@ -16,7 +18,8 @@ MapThread::MapThread(int map_id, const std::string& map_name,
       max_monsters_(max_monsters), spawn_interval_(spawn_interval),
       monster_spawn_(monster_spawn),
       spawn_seed_(static_cast<std::uint32_t>(map_id) * 1664525u + 42u),
-      tick_ms_(tick_ms) {
+      tick_ms_(tick_ms),
+      aoi_grid_(lemondory::data::DataManager::instance().get_const("AOI_CELL_SIZE", 100.0f)) {
 
     // 맵 전용 ECS 초기화 (글로벌 싱글톤과 독립)
     game_service_local_.initialize();
@@ -118,20 +121,35 @@ void MapThread::process_tasks() {
 void MapThread::add_player(int channel_id, Entity player_entity) {
     std::lock_guard<std::mutex> lock(objects_mutex_);
     local_players_.insert(channel_id);
+    channel_to_entity_[channel_id] = player_entity;
+
+    // 초기 위치 (0,0,0), 스폰 시점에 실제 위치로 갱신될 때까지 임시값
+    const CellKey cell = aoi_grid_.get_cell(0.0f, 0.0f);
+    player_cell_[channel_id] = cell;
+    player_pos_[channel_id] = {0.0f, 0.0f, 0.0f, 0.0f};
+    aoi_grid_.add_player(channel_id, cell);
+
     player_count_.store(static_cast<int>(local_players_.size()));
-    
-    if (map_objects_component_) {
+
+    if (map_objects_component_)
         map_objects_component_->add_player(player_entity);
-    }
-    
+
     LOGD("MapThread map={}: player {} added", map_id_, channel_id);
 }
 
 void MapThread::remove_player(int channel_id) {
     std::lock_guard<std::mutex> lock(objects_mutex_);
+
+    auto cell_it = player_cell_.find(channel_id);
+    if (cell_it != player_cell_.end()) {
+        aoi_grid_.remove_player(channel_id, cell_it->second);
+        player_cell_.erase(cell_it);
+    }
+    channel_to_entity_.erase(channel_id);
+    player_pos_.erase(channel_id);
     local_players_.erase(channel_id);
     player_count_.store(static_cast<int>(local_players_.size()));
-    
+
     LOGD("MapThread map={}: player {} removed", map_id_, channel_id);
 }
 
@@ -256,12 +274,41 @@ void MapThread::process_single_packet(const MapPacket& packet) {
 }
 
 void MapThread::handle_movement_packet(int channel_id, const std::string& data) {
-    if (data.size() < 12) return;
-    float x, y, z;
-    std::memcpy(&x, data.data() + 0, 4);
-    std::memcpy(&y, data.data() + 4, 4);
-    std::memcpy(&z, data.data() + 8, 4);
-    LOGD("MapThread map={}: move channel={} ({:.1f},{:.1f},{:.1f})", map_id_, channel_id, x, y, z);
+    using namespace lemondory::shared;
+    player_move_req req;
+    if (!player_move_req::parse(data.data(), data.data() + data.size(), req)) return;
+
+    // AOI 셀 업데이트
+    const CellKey new_cell = aoi_grid_.get_cell(req.x, req.z);
+    std::vector<int> nearby;
+    {
+        std::lock_guard<std::mutex> lock(objects_mutex_);
+        auto cell_it = player_cell_.find(channel_id);
+        if (cell_it != player_cell_.end()) {
+            aoi_grid_.move_player(channel_id, cell_it->second, new_cell);
+            cell_it->second = new_cell;
+        }
+        player_pos_[channel_id] = {req.x, req.y, req.z, req.rotation};
+        nearby = aoi_grid_.get_players_in_view(new_cell);
+    }
+
+    LOGD("MapThread map={}: move channel={} ({:.1f},{:.1f},{:.1f})", map_id_, channel_id, req.x, req.y, req.z);
+
+    if (!sender_) return;
+
+    // 인접 셀 플레이어 전원에게 이동 브로드캐스트 (이동한 본인 제외)
+    player_move_res res;
+    res.player_id = static_cast<std::uint32_t>(channel_id);
+    res.x = req.x; res.y = req.y; res.z = req.z;
+    res.rotation  = req.rotation;
+    res.timestamp = req.timestamp;
+    const auto payload = res.serialize();
+
+    for (int target : nearby) {
+        if (target == channel_id) continue;
+        // cmd 1002 = game_server의 player_move 응답 cmd와 일치 (handle_move 참고)
+        sender_(target, 1002u, payload.data(), payload.size());
+    }
 }
 
 void MapThread::handle_combat_packet(int channel_id, const std::string& data) {

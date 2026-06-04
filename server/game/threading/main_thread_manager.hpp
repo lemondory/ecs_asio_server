@@ -53,6 +53,9 @@ public:
     void handle_guild_system(int channel_id, const std::string& message);
     void handle_friend_system(int channel_id, const std::string& message);
     
+    // AOI 브로드캐스트 콜백 등록 — MapThreadManager를 통해 모든 MapThread에 배포
+    void set_sender(SenderFn fn);
+
     // 맵 이동 처리
     void handle_map_transfer(int channel_id, int from_map, int to_map, Entity player_entity);
     

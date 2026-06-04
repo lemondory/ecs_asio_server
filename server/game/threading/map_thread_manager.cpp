@@ -24,10 +24,13 @@ void MapThreadManager::create_map_thread(int map_id, const std::string& map_name
     auto map_thread = std::make_unique<MapThread>(
         map_id, map_name, width, height, max_players,
         max_monsters, spawn_interval, monster_spawn, tick_ms);
+    if (sender_fn_)
+        map_thread->set_sender(sender_fn_);
+
     map_thread->start();
-    
+
     map_threads_[map_id] = std::move(map_thread);
-    
+
     LOGI("[MapThreadManager] Created map thread {} ({})", map_id, map_name);
 }
 
@@ -161,6 +164,13 @@ int MapThreadManager::get_player_map(int channel_id) const {
 void MapThreadManager::update_player_map(int channel_id, int map_id) {
     std::lock_guard<std::mutex> lock(player_map_mutex_);
     player_map_mapping_[channel_id] = map_id;
+}
+
+void MapThreadManager::set_sender(SenderFn fn) {
+    std::lock_guard<std::mutex> lock(map_threads_mutex_);
+    sender_fn_ = fn;
+    for (auto& [map_id, thread] : map_threads_)
+        thread->set_sender(fn);
 }
 
 } // namespace lemondory::game

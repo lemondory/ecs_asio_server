@@ -193,4 +193,9 @@ void MainThreadManager::process_task_queue() {
     }
 }
 
+void MainThreadManager::set_sender(SenderFn fn) {
+    if (map_thread_manager_)
+        map_thread_manager_->set_sender(std::move(fn));
+}
+
 } // namespace lemondory::game

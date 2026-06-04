@@ -315,6 +315,16 @@ void game_server::initialize_threading_system() {
             m.max_monsters, m.spawn_interval, m.monster_spawn, tick_ms);
     }
 
+    // AOI 브로드캐스트 콜백 등록 — MapThread → 네트워크 채널로 패킷 전송
+    main_thread_manager_->set_sender(
+        [this](int ch_id, std::uint16_t cmd, const char* data, std::size_t sz) {
+            std::lock_guard<std::mutex> lk(mtx_);
+            auto it = channels_.find(ch_id);
+            if (it != channels_.end())
+                send_frame(it->second, cmd, data, sz);
+        }
+    );
+
     LOGI("Threading system initialized with {} map(s).", maps.size());
 }
 
