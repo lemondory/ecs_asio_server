@@ -42,6 +42,9 @@ public:
     // AOI 브로드캐스트 콜백 등록 — 생성된 모든 맵 스레드에 배포
     void set_sender(SenderFn fn);
 
+    // 플레이어가 현재 속한 map_id 조회 (-1 = 미배정)
+    int get_player_map(int channel_id) const;
+
 private:
     SenderFn sender_fn_; // 새 맵 스레드 생성 시 자동 주입
     // 맵 스레드 저장소
@@ -59,8 +62,6 @@ private:
     std::unordered_map<int, int> player_map_mapping_;  // channel_id -> map_id
     mutable std::mutex player_map_mutex_;
     
-    // 맵 정보 조회
-    int get_player_map(int channel_id) const;
     void update_player_map(int channel_id, int map_id);
 };
 

@@ -193,6 +193,13 @@ void MainThreadManager::process_task_queue() {
     }
 }
 
+void MainThreadManager::remove_player(int channel_id) {
+    if (!map_thread_manager_) return;
+    const int map_id = map_thread_manager_->get_player_map(channel_id);
+    if (map_id != -1)
+        map_thread_manager_->remove_player_from_map(map_id, channel_id);
+}
+
 void MainThreadManager::set_sender(SenderFn fn) {
     if (map_thread_manager_)
         map_thread_manager_->set_sender(std::move(fn));

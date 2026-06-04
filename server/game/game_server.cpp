@@ -236,6 +236,7 @@ void game_server::on_close(int channel_id, const void* /*error*/, close_function
 #endif
 
     if (main_thread_manager_) {
+        main_thread_manager_->remove_player(channel_id);
         std::lock_guard<std::mutex> map_lock(player_map_mutex_);
         player_map_mapping_.erase(channel_id);
     }
@@ -340,7 +341,7 @@ void game_server::shutdown_threading_system() {
 int game_server::get_player_map(int channel_id) {
     std::lock_guard<std::mutex> lock(player_map_mutex_);
     auto it = player_map_mapping_.find(channel_id);
-    return it != player_map_mapping_.end() ? it->second : 1;
+    return it != player_map_mapping_.end() ? it->second : -1;
 }
 
 void game_server::update_player_map(int channel_id, int map_id) {

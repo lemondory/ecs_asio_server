@@ -32,6 +32,7 @@ private:
 
     void send_frame(std::uint16_t cmd, const char* data, std::size_t size);
     void send_login();
+    void send_map_enter(int map_id, float x = 0.f, float y = 0.f, float z = 0.f);
     void send_move(float x, float y, float z);
     void send_chat(const std::string& msg);
     void send_ping();
@@ -52,6 +53,10 @@ private:
 
     std::vector<char> acc_;
     std::size_t acc_offset_{0};
+
+    // 상태 플래그 (recv 스레드에서 세트, run()에서 대기)
+    std::atomic<bool> in_map_{false};
+    int spawn_map_id_{1};
 };
 
 } // namespace lemondory::client

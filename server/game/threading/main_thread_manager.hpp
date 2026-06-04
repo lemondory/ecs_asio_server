@@ -53,6 +53,9 @@ public:
     void handle_guild_system(int channel_id, const std::string& message);
     void handle_friend_system(int channel_id, const std::string& message);
     
+    // 플레이어 퇴장 정리 (on_close에서 호출 — MapThread AOI/셀 정보 제거)
+    void remove_player(int channel_id);
+
     // AOI 브로드캐스트 콜백 등록 — MapThreadManager를 통해 모든 MapThread에 배포
     void set_sender(SenderFn fn);
 

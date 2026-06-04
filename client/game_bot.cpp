@@ -1,5 +1,6 @@
 #include "client/game_bot.hpp"
 #include "common/protocol/protocol_player.hpp"
+#include "common/protocol/protocol_map.hpp"
 #include <iostream>
 #include <chrono>
 #include <cstring>
@@ -53,16 +54,26 @@ bool GameBot::connect() {
 }
 
 void GameBot::run(int move_count) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(200)); // wait for login_res
+    // 맵 진입 완료까지 최대 3초 대기 (100ms × 30)
+    for (int i = 0; i < 30 && running_ && !in_map_; ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    if (!in_map_) {
+        std::cerr << "[" << player_name_ << "] timeout waiting for map entry\n";
+        return;
+    }
 
     for (int i = 0; i < move_count && running_; ++i) {
-        float x = static_cast<float>(i * 5);
-        float z = static_cast<float>(i * 3);
+        // 셀 크기(100) 경계를 넘나들도록 이동 — AOI 브로드캐스트 트리거
+        float x = static_cast<float>(i * 30);
+        float z = static_cast<float>(i * 20);
         send_move(x, 0.f, z);
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        std::this_thread::sleep_for(std::chrono::milliseconds(400));
 
         if (i % 3 == 0)
-            send_chat("step=" + std::to_string(i) + " from " + player_name_);
+            send_chat("step=" + std::to_string(i) + " pos=(" +
+                      std::to_string(static_cast<int>(x)) + "," +
+                      std::to_string(static_cast<int>(z)) + ")");
     }
 
     send_ping();
@@ -92,6 +103,17 @@ void GameBot::send_login() {
     auto payload = req.serialize();
     send_frame(1001, payload.data(), payload.size());
     std::cout << "[bot] → LOGIN player=" << player_name_ << "\n";
+}
+
+void GameBot::send_map_enter(int map_id, float x, float y, float z) {
+    using namespace lemondory::shared;
+    map_enter_req req;
+    req.map_id = static_cast<std::uint32_t>(map_id);
+    req.x = x; req.y = y; req.z = z;
+    req.timestamp = 0;
+    auto payload = req.serialize();
+    send_frame(1005, payload.data(), payload.size());
+    std::cout << "[" << player_name_ << "] → MAP_ENTER map=" << map_id << "\n";
 }
 
 void GameBot::send_move(float x, float y, float z) {
@@ -141,33 +163,66 @@ void GameBot::recv_loop() {
 }
 
 void GameBot::on_frame(std::uint16_t cmd, std::string_view payload) {
+    using namespace lemondory::shared;
+    const char* p   = payload.data();
+    const char* end = p + payload.size();
+
     switch (cmd) {
-    case 1: // PING from server → reply PONG
+    case 1: // PING → PONG
         send_frame(2, nullptr, 0);
-        std::cout << "[bot] ← PING → PONG\n";
         break;
+
     case 2: // PONG
-        std::cout << "[bot] ← PONG\n";
+        std::cout << "[" << player_name_ << "] ← PONG\n";
         break;
+
     case 1001: { // LOGIN_RES
         login_res res{};
-        if (login_res::parse(payload.data(), payload.data() + payload.size(), res)) {
-            std::cout << "[bot] ← LOGIN_RES success=" << res.success
+        if (login_res::parse(p, end, res) && res.success) {
+            spawn_map_id_ = static_cast<int>(res.map_id);
+            std::cout << "[" << player_name_ << "] ← LOGIN_RES ok"
                       << " player_id=" << res.player_id
-                      << " map_id=" << res.map_id << "\n";
+                      << " spawn_map=" << spawn_map_id_ << "\n";
+            send_map_enter(spawn_map_id_);
         } else {
-            std::cout << "[bot] ← LOGIN_RES (raw " << payload.size() << "B)\n";
+            std::cout << "[" << player_name_ << "] ← LOGIN_RES failed\n";
         }
         break;
     }
-    case 1002: // MOVE broadcast from other players
-        std::cout << "[bot] ← MOVE_BROADCAST size=" << payload.size() << "\n";
+
+    case 1002: { // PLAYER_MOVE_RES — 인접 플레이어 이동 AOI 브로드캐스트
+        player_move_res res{};
+        if (player_move_res::parse(p, end, res)) {
+            std::cout << "[" << player_name_ << "] ← AOI_MOVE player=" << res.player_id
+                      << " pos=(" << res.x << "," << res.y << "," << res.z << ")\n";
+        }
         break;
-    case 1003: // CHAT broadcast
-        std::cout << "[bot] ← CHAT size=" << payload.size() << "\n";
+    }
+
+    case 1003: { // CHAT broadcast
+        std::string msg(p, end);
+        std::cout << "[" << player_name_ << "] ← CHAT \"" << msg << "\"\n";
         break;
+    }
+
+    case 1005: { // MAP_ENTER_RES
+        map_enter_res res{};
+        if (map_enter_res::parse(p, end, res)) {
+            if (res.success) {
+                std::cout << "[" << player_name_ << "] ← MAP_ENTER_RES ok"
+                          << " map=" << res.map_id << "(" << res.map_name << ")"
+                          << " pos=(" << res.x << "," << res.y << "," << res.z << ")\n";
+                in_map_ = true;
+            } else {
+                std::cout << "[" << player_name_ << "] ← MAP_ENTER_RES failed: " << res.message << "\n";
+            }
+        }
+        break;
+    }
+
     default:
-        std::cout << "[bot] ← cmd=" << cmd << " size=" << payload.size() << "\n";
+        std::cout << "[" << player_name_ << "] ← cmd=" << cmd
+                  << " size=" << payload.size() << "\n";
         break;
     }
 }
