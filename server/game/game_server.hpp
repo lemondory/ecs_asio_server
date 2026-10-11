@@ -131,7 +131,7 @@ private:
     std::unique_ptr<lemondory::db::RedisClient> redis_client_;
 #endif
 
-    // 인메모리 길드 (DB 연동 전 임시)
+    // TODO(guild-db): 인메모리 길드 (DB 연동 전 임시)
     struct GuildData {
         std::uint32_t id;
         std::string name;
@@ -158,6 +158,9 @@ private:
     int get_player_map(int channel_id);
     void update_player_map(int channel_id, int map_id);
     void route_packet_to_map(int channel_id, std::uint16_t cmd, const char* data, std::size_t size);
+    // center_channel 기준 AOI 범위에만 전송 (맵 전체 broadcast 대신 사용)
+    void aoi_broadcast(int center_channel, std::uint16_t cmd, const char* data, std::size_t size,
+                       int exclude_channel = -1);
 };
 
 } // namespace lemondory::game

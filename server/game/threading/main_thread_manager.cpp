@@ -74,11 +74,18 @@ void MainThreadManager::destroy_map_thread(int map_id) {
     }
 }
 
-void MainThreadManager::send_packet_to_map(int map_id, int channel_id, std::uint16_t cmd, 
+void MainThreadManager::send_packet_to_map(int map_id, int channel_id, std::uint16_t cmd,
                                          const char* data, std::size_t size) {
-    if (map_thread_manager_) {
+    if (map_thread_manager_)
         map_thread_manager_->send_packet_to_map(map_id, channel_id, cmd, data, size);
-    }
+}
+
+void MainThreadManager::aoi_broadcast(int map_id, int center_channel,
+                                      std::uint16_t cmd,
+                                      const char* data, std::size_t size,
+                                      int exclude_channel) {
+    if (map_thread_manager_)
+        map_thread_manager_->aoi_broadcast(map_id, center_channel, cmd, data, size, exclude_channel);
 }
 
 void MainThreadManager::handle_global_chat(int channel_id, const std::string& message) {

@@ -12,7 +12,7 @@
   },
   "logging": {
     // 운영 환경에서는 "info" 또는 "warn" 으로 변경
-    "level": "debug",
+    "level": "info",
     "file": false,
     "file_path": "logs/server.log"
   },

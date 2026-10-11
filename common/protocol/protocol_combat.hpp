@@ -62,6 +62,9 @@ struct attack_res {
     }
 };
 
+// ==================== 데미지 알림 (cmd 1008) ====================
+// 공격 결과를 AOI 범위 내 플레이어에게 브로드캐스트 (공격자 본인은 attack_res 1004 수신)
+
 struct damage_notify {
     std::uint32_t attacker_id;
     std::uint32_t target_id;
@@ -227,6 +230,30 @@ struct combat_result_notify {
         
         if (p + 4 > end) return false;
         out.timestamp = read_le32(p); p += 4;
+        return true;
+    }
+};
+
+// ==================== 사망 알림 (cmd 1006) ====================
+
+struct entity_death_notify {
+    std::uint32_t entity_id;   // 사망한 엔티티 (플레이어는 channel_id)
+    std::uint32_t killer_id;   // 공격자 channel_id
+    std::uint32_t timestamp;
+
+    std::vector<char> serialize() const {
+        std::vector<char> out;
+        write_le32(out, entity_id);
+        write_le32(out, killer_id);
+        write_le32(out, timestamp);
+        return out;
+    }
+
+    static bool parse(const char* p, const char* end, entity_death_notify& out) {
+        if (p + 12 > end) return false;
+        out.entity_id  = read_le32(p); p += 4;
+        out.killer_id  = read_le32(p); p += 4;
+        out.timestamp  = read_le32(p); p += 4;
         return true;
     }
 };

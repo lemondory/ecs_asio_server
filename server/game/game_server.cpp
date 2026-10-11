@@ -1,5 +1,6 @@
 #include "game_server.hpp"
 #include "common/log.hpp"
+#include "common/protocol/protocol_player.hpp"
 #include "server/data/data_manager.hpp"
 #include <cstring>
 
@@ -146,11 +147,6 @@ void game_server::on_accept(int channel_id, socket_channel_base* channel) {
     if (db_pool_) db_strands_.emplace(channel_id, db_pool_->get_executor());
 #endif
 
-    if (main_thread_manager_) {
-        update_player_map(channel_id, 1);
-        LOGD("Player {} added to map 1 (Forest)", channel_id);
-    }
-
     LOGI("accept: channel={}", channel_id);
 }
 
@@ -236,6 +232,14 @@ void game_server::on_close(int channel_id, const void* /*error*/, close_function
 #endif
 
     if (main_thread_manager_) {
+        // remove_player 전에 셀 정보가 유효할 때 퇴장 알림 전송
+        if (entity != 0) {
+            lemondory::shared::player_leave_notify leave{
+                static_cast<std::uint32_t>(channel_id)
+            };
+            auto leave_payload = leave.serialize();
+            aoi_broadcast(channel_id, 1007, leave_payload.data(), leave_payload.size(), channel_id);
+        }
         main_thread_manager_->remove_player(channel_id);
         std::lock_guard<std::mutex> map_lock(player_map_mutex_);
         player_map_mapping_.erase(channel_id);
@@ -249,6 +253,7 @@ void game_server::on_close(int channel_id, const void* /*error*/, close_function
 
 void game_server::on_tick() {
     if (config_.use_ecs) {
+        // TODO(tick-dt): dt 0.016 고정 — config tick_rate 또는 실측 경과 시간 사용
         game_service().update(0.016f);
     }
 }
@@ -353,6 +358,14 @@ void game_server::route_packet_to_map(int channel_id, std::uint16_t cmd, const c
     if (!main_thread_manager_) return;
     int map_id = get_player_map(channel_id);
     main_thread_manager_->send_packet_to_map(map_id, channel_id, cmd, data, size);
+}
+
+void game_server::aoi_broadcast(int center_channel, std::uint16_t cmd,
+                                 const char* data, std::size_t size,
+                                 int exclude_channel) {
+    if (!main_thread_manager_) return;
+    int map_id = get_player_map(center_channel);
+    main_thread_manager_->aoi_broadcast(map_id, center_channel, cmd, data, size, exclude_channel);
 }
 
 // ── 주기적 DB 플러시 ─────────────────────────────────────────────────────────

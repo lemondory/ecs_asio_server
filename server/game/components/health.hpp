@@ -71,7 +71,7 @@ struct Status : public Component {
     // 경험치 관련 메서드
     void add_experience(std::uint32_t exp) {
         experience += exp;
-        // TODO: 레벨업 로직
+        // TODO(level-stats): 레벨업 로직 (PlayerLevel.csv exp_required 사용)
     }
     
     void add_gold(std::uint32_t amount) {

@@ -42,6 +42,11 @@ public:
     // AOI 브로드캐스트 콜백 등록 — 생성된 모든 맵 스레드에 배포
     void set_sender(SenderFn fn);
 
+    // center_channel 기준 AOI 범위 브로드캐스트
+    void aoi_broadcast(int map_id, int center_channel, std::uint16_t cmd,
+                       const char* data, std::size_t size,
+                       int exclude_channel = -1);
+
     // 플레이어가 현재 속한 map_id 조회 (-1 = 미배정)
     int get_player_map(int channel_id) const;
 

@@ -173,4 +173,14 @@ void MapThreadManager::set_sender(SenderFn fn) {
         thread->set_sender(fn);
 }
 
+void MapThreadManager::aoi_broadcast(int map_id, int center_channel,
+                                     std::uint16_t cmd,
+                                     const char* data, std::size_t size,
+                                     int exclude_channel) {
+    std::lock_guard<std::mutex> lock(map_threads_mutex_);
+    auto it = map_threads_.find(map_id);
+    if (it != map_threads_.end())
+        it->second->broadcast_to_nearby(center_channel, cmd, data, size, exclude_channel);
+}
+
 } // namespace lemondory::game

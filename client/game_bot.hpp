@@ -6,6 +6,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 
 namespace lemondory::client {
@@ -34,6 +35,7 @@ private:
     void send_login();
     void send_map_enter(int map_id, float x = 0.f, float y = 0.f, float z = 0.f);
     void send_move(float x, float y, float z);
+    void send_attack(std::uint32_t target_id, std::uint32_t skill_id = 1);
     void send_chat(const std::string& msg);
     void send_ping();
 
@@ -56,7 +58,12 @@ private:
 
     // 상태 플래그 (recv 스레드에서 세트, run()에서 대기)
     std::atomic<bool> in_map_{false};
+    std::atomic<bool> alive_{true};
     int spawn_map_id_{1};
+
+    // 주변 플레이어 추적 (AOI 브로드캐스트에서 수집, recv 스레드가 씀)
+    std::unordered_set<std::uint32_t> nearby_players_;
+    std::mutex nearby_mutex_;
 };
 
 } // namespace lemondory::client

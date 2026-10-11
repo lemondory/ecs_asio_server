@@ -94,6 +94,7 @@ void AISystem::patrol(Entity entity, float /*x*/, float /*y*/, float /*z*/, floa
     }
 
     if (velocity) {
+        // TODO(ai-data): 순찰 속도 0.5 하드코딩 → Monster.csv 또는 BattleConst로 이전
         velocity->x = dx * 0.5f; // 순찰 속도
         velocity->y = dy * 0.5f;
         velocity->z = dz * 0.5f;
@@ -104,8 +105,7 @@ void AISystem::attack_target(Entity entity) {
     auto* monster = component_manager().get_component<Monster>(entity);
     if (!monster || monster->target_entity == 0) return;
     
-    // TODO: 전투 시스템과 연동
-    // 현재는 간단한 데미지 처리
+    // TODO(combat-damage): 고정 데미지 10 → CombatSystem 공식 사용 (Monster.csv atk 반영)
     auto* target_health = component_manager().get_component<Health>(monster->target_entity);
     if (target_health) {
         target_health->take_damage(10); // 고정 데미지
@@ -149,6 +149,7 @@ Entity nearest_target = 0;
         float dz = player_position->z - position->z;
         float distance = std::sqrt(dx*dx + dy*dy + dz*dz);
         
+        // TODO(ai-data): 탐지 거리 20 하드코딩 → Monster.csv detect_range 사용
         if (distance < nearest_distance && distance < 20.0f) { // 20 유닛 내
             nearest_distance = distance;
             nearest_target = player_entity;

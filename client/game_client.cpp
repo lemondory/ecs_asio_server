@@ -20,7 +20,7 @@ enum GameMessageID : uint16_t {
 std::vector<char> create_frame(uint16_t msg_id, const std::string& data) {
     std::vector<char> frame(8 + data.size()); // CRC(4) + MSG_ID(2) + LEN(2) + PAYLOAD
     
-    // CRC32 (임시로 0)
+    // TODO(crc): CRC32 임시로 0 — 서버 frame_codec과 동일한 CRC 계산 적용
     uint32_t crc = 0;
     std::memcpy(&frame[0], &crc, 4);
 

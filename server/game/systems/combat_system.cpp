@@ -14,7 +14,7 @@ void CombatSystem::update(float /*delta_time*/) {
         auto* health = component_manager().get_component<Health>(entity);
         if (health && health->hp <= 0) {
             LOGD("Entity {} died", static_cast<int>(entity));
-            // TODO: 사망 처리 로직
+            // TODO(respawn): 사망 처리 로직 — 현재 handle_attack에서 hp=0 유지 + 1006 알림만 수행
         }
     }
 }
@@ -23,7 +23,7 @@ void CombatSystem::attack(Entity attacker, Entity target) {
     LOGD("Entity {} attacks Entity {}", static_cast<int>(attacker), static_cast<int>(target));
     
     // 기본 데미지 계산
-    std::uint32_t damage = 10; // TODO: 공격력 기반 계산
+    std::uint32_t damage = 10; // TODO(combat-damage): ATK/DEF 기반 계산 (handle_attack과 공식 통합)
     take_damage(target, damage);
 }
 

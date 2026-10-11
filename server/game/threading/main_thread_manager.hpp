@@ -45,8 +45,12 @@ public:
                           float spawn_interval = 30.0f, bool monster_spawn = true,
                           int tick_ms = 16);
     void destroy_map_thread(int map_id);
-    void send_packet_to_map(int map_id, int channel_id, std::uint16_t cmd, 
+    void send_packet_to_map(int map_id, int channel_id, std::uint16_t cmd,
                           const char* data, std::size_t size);
+
+    void aoi_broadcast(int map_id, int center_channel, std::uint16_t cmd,
+                       const char* data, std::size_t size,
+                       int exclude_channel = -1);
     
     // 글로벌 시스템
     void handle_global_chat(int channel_id, const std::string& message);

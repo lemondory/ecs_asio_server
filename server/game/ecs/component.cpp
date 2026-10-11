@@ -16,7 +16,7 @@ void ComponentManager::remove_all_components(Entity entity) {
     std::lock_guard<std::mutex> lock(stores_mutex_);
     
     for (auto& [type_index, store] : stores_) {
-        // TODO: 각 스토어에서 엔티티 제거
+        // TODO(ecs-cleanup): 각 스토어에서 엔티티 제거
         // 이 부분은 더 정교한 구현이 필요
     }
 }
@@ -26,7 +26,7 @@ size_t ComponentManager::get_component_count() const {
     
     size_t total = 0;
     for (const auto& [type_index, store] : stores_) {
-        // TODO: 각 스토어의 크기 합계
+        // TODO(ecs-cleanup): 각 스토어의 크기 합계
     }
     return total;
 }

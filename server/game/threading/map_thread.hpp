@@ -72,6 +72,12 @@ public:
     // 플레이어 관리
     void add_player(int channel_id, Entity player_entity);
     void remove_player(int channel_id);
+
+    // AOI 범위 브로드캐스트 (center_channel 기준 3×3 셀)
+    // exclude_channel=-1이면 전체 전송, 아니면 해당 채널 제외
+    void broadcast_to_nearby(int center_channel, std::uint16_t cmd,
+                             const char* data, std::size_t size,
+                             int exclude_channel = -1);
     void update_player(int channel_id, const std::string& data);
     
     // 맵 업데이트

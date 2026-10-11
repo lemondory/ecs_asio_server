@@ -140,5 +140,24 @@ struct player_status_update {
     }
 };
 
+// ==================== 플레이어 퇴장 알림 (cmd 1007) ====================
+// 플레이어가 접속 해제 시 AOI 범위 내 플레이어에게 전송
+
+struct player_leave_notify {
+    std::uint32_t channel_id;
+
+    std::vector<char> serialize() const {
+        std::vector<char> out;
+        write_le32(out, channel_id);
+        return out;
+    }
+
+    static bool parse(const char* p, const char* end, player_leave_notify& out) {
+        if (p + 4 > end) return false;
+        out.channel_id = read_le32(p);
+        return true;
+    }
+};
+
 } // namespace lemondory::shared
 

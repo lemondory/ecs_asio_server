@@ -199,6 +199,39 @@ struct InventoryComponent {
 
 ---
 
+### 코드 내 임시 처리 / 하드코딩 (TODO 태그)
+
+코드에 `// TODO(태그): 설명` 형식으로 표시. `grep -rn "TODO(" server common client`로 전체 조회.
+
+| 태그 | 내용 | 위치 |
+|------|------|------|
+| `combat-damage` | 데미지 공식 하드코딩 (`10 + skill_id*5`, 고정 10) | `player_handlers.cpp` handle_attack, `combat_system.cpp`, `ai_system.cpp` attack_target |
+| `respawn` | 부활 시스템 부재 — 재접속 시 hp=0이면 max_hp로 복구하는 임시 가드 | `player_handlers.cpp` 로그인, `combat_system.cpp` |
+| `id-unify` | login_res는 db_id, 인게임 패킷은 channel_id — 클라이언트가 자기 id 식별 불가, 몬스터 타겟 불가 | `player_handlers.cpp` 로그인·handle_attack |
+| `level-stats` | 스폰 시 레벨 1 스탯 고정, 레벨업 미구현 | `player_handlers.cpp` 로그인 2곳, `health.hpp` |
+| `ai-data` | 순찰 속도 0.5, 탐지 거리 20, 스폰 수 3, 몬스터 레벨 1 하드코딩 → CSV 이전 | `ai_system.cpp`, `map_thread.cpp` spawn |
+| `cmd-enum` | cmd 번호 매직 넘버, MapThread 내부 cmd(0x1001~)와 체계 불일치 | `player_handlers.cpp` bind_player_handlers |
+| `tick-dt` | ECS update dt 0.016 고정 | `game_server.cpp` on_tick |
+| `redis-cache` | Redis 플레이어 캐시 조회가 placeholder | `player_handlers.cpp` 로그인 |
+| `guild-db` | 길드 인메모리 | `game_server.hpp` |
+| `spatial-index` | `get_entities_in_range()` 미구현 | `ecs/entity.cpp` |
+| `ecs-cleanup` | 엔티티 제거·크기 합계 미구현 | `ecs/component.cpp` |
+| `crc` | 테스트 클라이언트 CRC 0 고정 | `client/game_client.cpp` |
+
+---
+
+### 전투 시스템 (설계 확정 후 구현)
+
+| 항목 | 현재 상태 | 설계 필요 내용 |
+|------|-----------|----------------|
+| 데미지 계산 (`combat-damage`) | `10 + skill_id * 5` 하드코딩 | 공격자 ATK, 방어자 DEF, 스킬 배율(SkillData) 확정 후 `CombatSystem::calculate_damage()`로 위임. 위치: `player_handlers.cpp` handle_attack |
+| 타겟 식별 | `target_id`를 channel_id로 해석 (잘못됨) | entity_id 기반으로 변경, 플레이어/몬스터 구분 |
+| 몬스터 전투 | `handle_combat_packet` 빈 함수 | 몬스터 타겟 지원, MapThread 내 처리로 라우팅 |
+| 사망 처리 | entity 삭제만, 클라이언트 알림 없음 | `death_notify` 패킷 정의 및 브로드캐스트 |
+| AI 반격 | 빈 함수 | 몬스터 공격 주기, 타겟 탐색 범위, 상태머신 연동 |
+
+---
+
 ### 스텁 상태 게임 로직 (설계 필요)
 
 아래 항목은 `MapThread` 내에 함수 껍데기만 있고 구현이 없음.

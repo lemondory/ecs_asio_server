@@ -12,6 +12,8 @@ using namespace lemondory::network;
 // ── 핸들러 등록 ──────────────────────────────────────────────────────────────
 
 void game_server::bind_player_handlers() {
+    // TODO(cmd-enum): cmd 번호(1001~1008, 2001~)가 매직 넘버로 흩어져 있음 — 공용 enum으로 통합.
+    //                 MapThread 내부 cmd(0x1001~)와 번호 체계도 다르므로 함께 정리.
     dispatcher_.bind(1001, [this](int ch, const char* d, std::size_t s) { handle_login(ch, d, s); });
     dispatcher_.bind(1002, [this](int ch, const char* d, std::size_t s) { handle_move(ch, d, s); });
     dispatcher_.bind(1003, [this](int ch, const char* d, std::size_t s) { handle_chat(ch, d, s); });
@@ -78,7 +80,7 @@ void game_server::handle_login(int channel_id, const char* data, std::size_t siz
                     // 캐시 히트 시 DB 조회 생략 (future: deserialize cached JSON)
                     if (redis) {
                         auto cached = redis->get_player_cache(0); // placeholder: id 미확정
-                        (void)cached; // TODO: id 확정 후 캐시 우선 조회로 교체
+                        (void)cached; // TODO(redis-cache): id 확정 후 캐시 우선 조회로 교체
                     }
 #endif
                     rec = dao->find_or_create(player_name);
@@ -125,6 +127,9 @@ void game_server::handle_login(int channel_id, const char* data, std::size_t siz
                         int  spawn_map_id     = rec->map_id;
                         float spawn_x = rec->pos_x, spawn_y = rec->pos_y, spawn_z = rec->pos_z;
                         int  spawn_hp = rec->hp,    spawn_max_hp = rec->max_hp;
+                        // 사망 상태(hp=0)로 저장된 경우 재접속 시 최대 HP로 부활
+                        // TODO(respawn): 부활 시스템(대기 시간·부활 위치) 설계 후 교체
+                        if (spawn_hp <= 0) spawn_hp = spawn_max_hp;
                         LOGI("Player {}: db_id={} map={} pos=({:.1f},{:.1f},{:.1f})",
                              player_name, db_id, spawn_map_id, spawn_x, spawn_y, spawn_z);
 
@@ -140,6 +145,7 @@ void game_server::handle_login(int channel_id, const char* data, std::size_t siz
                                 static_cast<std::uint32_t>(spawn_map_id));
                             {
                                 // DB MP 미지원 시 PlayerLevel.csv 레벨 1 MP 사용
+                                // TODO(level-stats): rec->level 기준으로 MP·ATK·DEF 조회 (현재 레벨 1 고정)
                                 const auto* lv =
                                     lemondory::data::DataManager::instance().get_player_level(1);
                                 const uint32_t init_mp =
@@ -164,6 +170,8 @@ void game_server::handle_login(int channel_id, const char* data, std::size_t siz
                         if (!ch) return;
 
                         using namespace lemondory::shared;
+                        // TODO(id-unify): 클라이언트에 db_id를 주지만 인게임 패킷(이동·전투·사망)은
+                        //                 channel_id를 사용 → 클라이언트가 자기 id를 식별할 수 없음.
                         std::uint32_t resp_id = db_id > 0
                             ? static_cast<std::uint32_t>(db_id)
                             : static_cast<std::uint32_t>(player);
@@ -186,6 +194,7 @@ void game_server::handle_login(int channel_id, const char* data, std::size_t siz
         game_service().emplace_component<Player>(player,
             req.player_name, static_cast<std::uint32_t>(player), channel_id, 1u);
         {
+            // TODO(level-stats): DB 없는 경로 — 레벨 1·맵 1 고정 스폰
             const auto* lv =
                 lemondory::data::DataManager::instance().get_player_level(1);
             const uint32_t init_hp = lv ? static_cast<uint32_t>(lv->hp) : 100u;
@@ -287,6 +296,8 @@ void game_server::handle_attack(int channel_id, const char* data, std::size_t si
         return;
     }
 
+    // TODO(id-unify): target_id를 channel_id로 해석 — 몬스터 타겟 불가.
+    //                 entity_id 기반으로 바꾸고 플레이어/몬스터 구분 필요.
     int target_channel = static_cast<int>(req.target_id);
     LOGI("Attack channel={} -> target_channel={} skill={}", channel_id, target_channel, req.skill_id);
 
@@ -299,17 +310,36 @@ void game_server::handle_attack(int channel_id, const char* data, std::size_t si
             target_entity = it->second;
     }
 
+    // entity 조회 실패: 상대방이 이미 접속 해제한 극소수 타이밍 케이스
     if (!attacker_entity || !target_entity) {
-        LOGW("Attack: entity not found (attacker={} target={})", attacker_entity, target_entity);
-        attack_res res{false, "target not found", 0, 0, 0};
+        LOGD("Attack: entity not found (attacker={} target={}) — disconnect race",
+             attacker_entity, target_entity);
+        return;
+    }
+
+    auto* combat = game_service().get_system<CombatSystem>();
+    if (!combat) return;
+
+    // 상태 체크: 공격자가 사망 상태면 거부
+    if (combat->get_hp(attacker_entity) == 0) {
+        attack_res res{false, "you are dead", 0, 0, 0};
         auto payload = res.serialize();
         send_test_frame(channel_id, 1004, payload.data(), payload.size());
         return;
     }
 
+    // 상태 체크: 타겟이 이미 사망 상태면 거부
+    std::uint32_t target_current_hp = combat->get_hp(target_entity);
+    if (target_current_hp == 0) {
+        attack_res res{false, "target is dead", 0, 0, 0};
+        auto payload = res.serialize();
+        send_test_frame(channel_id, 1004, payload.data(), payload.size());
+        return;
+    }
+
+    // TODO(combat-damage): 스탯 기반 데미지 계산으로 교체 필요.
+    // 공격자 ATK, 방어자 DEF, 스킬 배율(SkillData) 설계 확정 후 CombatSystem::calculate_damage()로 위임.
     std::uint32_t damage = 10 + req.skill_id * 5;
-    auto* combat = game_service().get_system<CombatSystem>();
-    if (!combat) return;
     combat->take_damage(target_entity, damage);
 
     std::uint32_t remaining_hp = combat->get_hp(target_entity);
@@ -324,13 +354,18 @@ void game_server::handle_attack(int channel_id, const char* data, std::size_t si
         req.target_id, damage, remaining_hp, 1, req.timestamp
     };
     auto notify_payload = notify.serialize();
-    broadcast_except(channel_id, 1004, notify_payload.data(), notify_payload.size());
+    aoi_broadcast(channel_id, 1008, notify_payload.data(), notify_payload.size(), channel_id);
 
     if (target_dead) {
         LOGI("Entity {} killed by channel={}", static_cast<int>(target_entity), channel_id);
-        game_service().destroy_entity(target_entity);
-        std::lock_guard<std::mutex> lk(mtx_);
-        channel_to_entity_.erase(target_channel);
+        // entity와 channel_to_entity_를 유지 — hp=0으로 사망 상태 표현, 부활 시 재사용
+        entity_death_notify death{
+            req.target_id,
+            static_cast<std::uint32_t>(channel_id),
+            req.timestamp
+        };
+        auto death_payload = death.serialize();
+        aoi_broadcast(target_channel, 1006, death_payload.data(), death_payload.size());
     }
 }
 

@@ -153,6 +153,25 @@ void MapThread::remove_player(int channel_id) {
     LOGD("MapThread map={}: player {} removed", map_id_, channel_id);
 }
 
+void MapThread::broadcast_to_nearby(int center_channel, std::uint16_t cmd,
+                                     const char* data, std::size_t size,
+                                     int exclude_channel) {
+    if (!sender_) return;
+
+    std::vector<int> nearby;
+    {
+        std::lock_guard<std::mutex> lock(objects_mutex_);
+        auto it = player_cell_.find(center_channel);
+        if (it == player_cell_.end()) return;
+        nearby = aoi_grid_.get_players_in_view(it->second);
+    }
+
+    for (int target : nearby) {
+        if (target == exclude_channel) continue;
+        sender_(target, cmd, data, size);
+    }
+}
+
 void MapThread::update_player(int channel_id, const std::string& data) {
     // 플레이어 업데이트 로직
     LOGD("MapThread map={}: player {} updated", map_id_, channel_id);
@@ -400,6 +419,7 @@ void MapThread::spawn_monsters(float delta_time) {
     };
 
     const int remain = max_monsters_ - static_cast<int>(local_monsters_.size());
+    // TODO(ai-data): 1회 스폰 수 3, 몬스터 레벨 1 하드코딩 → MonsterSpawn.csv로 이전
     const int spawn_count = std::min(3, remain);
     for (int i = 0; i < spawn_count; ++i) {
         const auto* mdata = spawn_table[next_u() % spawn_table.size()];

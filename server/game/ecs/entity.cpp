@@ -42,7 +42,7 @@ std::vector<Entity> EntityManager::get_all_entities() const {
 }
 
 std::vector<Entity> EntityManager::get_entities_in_range(float x, float y, float z, float range) {
-    // TODO: 공간 인덱싱 구현
+    // TODO(spatial-index): 공간 인덱싱 구현 (MapThread AoiGrid 재사용 검토)
     return get_all_entities();
 }
 
